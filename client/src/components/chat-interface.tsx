@@ -1,23 +1,39 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useLocation } from "wouter";
 import { type ChatMessage } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Bot, User } from "lucide-react";
+import { Send, Bot, User, Image, Camera } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function ChatInterface() {
   const [message, setMessage] = useState("");
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Fetch chat history
   const { data: messages = [], isLoading } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chat-messages"],
   });
+
+  // Handle image selection
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Send message mutation
   const sendMessage = useMutation({
@@ -25,11 +41,21 @@ export default function ChatInterface() {
       return apiRequest("POST", "/api/chat-messages", {
         role: "user",
         content,
+        imageUrl: selectedImage,
       });
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["/api/chat-messages"] });
       setMessage("");
+      setSelectedImage(null);
+
+      // Handle assistant actions
+      if (response.assistantMessage.actionType) {
+        handleAssistantAction(
+          response.assistantMessage.actionType,
+          response.assistantMessage.actionPayload
+        );
+      }
     },
     onError: () => {
       toast({
@@ -40,9 +66,26 @@ export default function ChatInterface() {
     },
   });
 
+  const handleAssistantAction = (
+    actionType: string,
+    actionPayload: Record<string, unknown>
+  ) => {
+    switch (actionType) {
+      case "view_plant":
+      case "add_plant":
+      case "identify_plant":
+      case "view_marketplace":
+      case "create_swap":
+        if (actionPayload.redirect) {
+          navigate(actionPayload.redirect as string);
+        }
+        break;
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    if (!message.trim() && !selectedImage) return;
     sendMessage.mutate(message);
   };
 
@@ -85,6 +128,13 @@ export default function ChatInterface() {
                     {msg.role === "assistant" ? "Plant Care Assistant" : "You"}
                   </span>
                 </div>
+                {msg.imageUrl && (
+                  <img
+                    src={msg.imageUrl}
+                    alt="Shared plant"
+                    className="mb-2 rounded-md max-w-full"
+                  />
+                )}
                 <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               </div>
             </div>
@@ -94,6 +144,21 @@ export default function ChatInterface() {
 
       <form onSubmit={handleSubmit} className="p-4 border-t">
         <div className="flex gap-2">
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleImageSelect}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Camera className="h-4 w-4" />
+          </Button>
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -102,12 +167,29 @@ export default function ChatInterface() {
           />
           <Button
             type="submit"
-            disabled={sendMessage.isPending || !message.trim()}
+            disabled={sendMessage.isPending || (!message.trim() && !selectedImage)}
           >
             <Send className="h-4 w-4" />
             <span className="sr-only">Send message</span>
           </Button>
         </div>
+        {selectedImage && (
+          <div className="mt-2">
+            <img
+              src={selectedImage}
+              alt="Selected image"
+              className="h-20 rounded-md"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-1"
+              onClick={() => setSelectedImage(null)}
+            >
+              Remove
+            </Button>
+          </div>
+        )}
       </form>
     </Card>
   );

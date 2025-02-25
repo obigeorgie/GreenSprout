@@ -220,12 +220,25 @@ export async function registerRoutes(app: Express) {
       // Store AI response
       const savedAssistantMessage = await storage.createChatMessage({
         role: "assistant",
-        content: assistantResponse,
+        content: assistantResponse.content,
+        imageUrl: assistantResponse.imageUrl,
+        actionType: assistantResponse.actionType,
+        actionPayload: assistantResponse.actionPayload,
       });
+
+      // If there's an action, process it
+      let actionResult = null;
+      if (assistantResponse.actionType) {
+        actionResult = await handleAssistantAction(
+          assistantResponse.actionType,
+          assistantResponse.actionPayload || {}
+        );
+      }
 
       res.json({
         userMessage: savedUserMessage,
         assistantMessage: savedAssistantMessage,
+        actionResult,
       });
     } catch (err) {
       if (err instanceof ZodError) {

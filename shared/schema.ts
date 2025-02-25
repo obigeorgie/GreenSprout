@@ -192,25 +192,43 @@ export const careGuides = {
 
 // Add chat message types to existing schema.ts
 
-// Add after existing tables...
+// Define valid assistant action types
+export const AssistantActionType = {
+  VIEW_PLANT: "view_plant",
+  ADD_PLANT: "add_plant",
+  UPDATE_CARE: "update_care",
+  IDENTIFY_PLANT: "identify_plant",
+  VIEW_MARKETPLACE: "view_marketplace",
+  CREATE_SWAP: "create_swap",
+  SHOW_RECOMMENDATIONS: "show_recommendations",
+} as const;
 
+// Add to the existing chatMessages table definition
 export const chatMessages = pgTable("chat_messages", {
   id: serial("id").primaryKey(),
   role: text("role").notNull(), // "user" or "assistant"
   content: text("content").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   metadata: jsonb("metadata"), // For storing additional message context
+  // Add new fields for multimodal support
+  imageUrl: text("image_url"),
+  actionType: text("action_type"), // One of AssistantActionType
+  actionPayload: jsonb("action_payload"), // Data needed for the action
 });
 
-// Add chat message schema
+// Update the insert schema
 export const insertChatMessageSchema = createInsertSchema(chatMessages)
   .omit({ id: true, timestamp: true })
   .extend({
     role: z.enum(["user", "assistant"]),
     content: z.string().min(1, "Message cannot be empty"),
     metadata: z.record(z.unknown()).optional(),
+    imageUrl: z.string().optional(),
+    actionType: z.enum(Object.values(AssistantActionType) as [string, ...string[]]).optional(),
+    actionPayload: z.record(z.unknown()).optional(),
   });
 
 // Add types
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type AssistantAction = typeof AssistantActionType[keyof typeof AssistantActionType];
