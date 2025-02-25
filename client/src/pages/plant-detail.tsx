@@ -65,7 +65,8 @@ export default function PlantDetail() {
     }
   };
 
-  const careGuide = careGuides[plant.sunlightNeeds];
+  // Type assertion to ensure sunlightNeeds is a valid key
+  const careGuide = careGuides[plant.sunlightNeeds as keyof typeof careGuides];
 
   return (
     <div className="py-8">
