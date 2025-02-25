@@ -11,6 +11,7 @@ export default function IdentifyPlant() {
   const [showCamera, setShowCamera] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [identificationResults, setIdentificationResults] = useState<Record<string, number> | null>(null);
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
@@ -20,22 +21,30 @@ export default function IdentifyPlant() {
     setAnalyzing(true);
 
     try {
-      // TODO: Implement plant identification API call
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulated delay
-      
+      const response = await fetch("/api/identify-plant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: imageData }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to identify plant");
+      }
+
+      const results = await response.json();
+      setIdentificationResults(results.data);
+
       toast({
         title: "Plant Identified!",
-        description: "We've found a match in our database.",
+        description: "We've found potential matches in our database.",
       });
-      
-      // TODO: Navigate to add plant page with pre-filled data
-      navigate("/add");
     } catch (error) {
       toast({
         title: "Identification Failed",
         description: "Unable to identify the plant. Please try again.",
         variant: "destructive",
       });
+      setIdentificationResults(null);
     } finally {
       setAnalyzing(false);
     }
@@ -85,6 +94,32 @@ export default function IdentifyPlant() {
                 Analyzing your plant...
               </p>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {identificationResults && (
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Identification Results</h2>
+            <div className="space-y-2">
+              {Object.entries(identificationResults)
+                .sort(([, a], [, b]) => b - a)
+                .map(([species, confidence]) => (
+                  <div key={species} className="flex justify-between items-center">
+                    <span>{species}</span>
+                    <span className="text-muted-foreground">
+                      {(confidence * 100).toFixed(1)}% match
+                    </span>
+                  </div>
+                ))}
+            </div>
+            <Button
+              className="w-full mt-4"
+              onClick={() => navigate("/add")}
+            >
+              Add to My Plants
+            </Button>
           </CardContent>
         </Card>
       )}

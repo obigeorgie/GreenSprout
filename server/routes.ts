@@ -3,8 +3,31 @@ import { createServer } from "http";
 import { storage } from "./storage";
 import { insertPlantSchema } from "@shared/schema";
 import { ZodError } from "zod";
+import { spawn } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+
+let gradioProcess: any = null;
+
+function startGradioServer() {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const scriptPath = path.join(__dirname, "plant_classifier.py");
+  gradioProcess = spawn("python", [scriptPath]);
+
+  gradioProcess.stdout.on('data', (data: Buffer) => {
+    console.log('Gradio output:', data.toString());
+  });
+
+  gradioProcess.stderr.on('data', (data: Buffer) => {
+    console.error('Gradio error:', data.toString());
+  });
+}
 
 export async function registerRoutes(app: Express) {
+  // Start Gradio server
+  startGradioServer();
+
   // Existing plant routes
   app.get("/api/plants", async (_req, res) => {
     const plants = await storage.getPlants();
@@ -63,5 +86,34 @@ export async function registerRoutes(app: Express) {
     res.json(species);
   });
 
-  return createServer(app);
+  // New route for plant identification
+  app.post("/api/identify-plant", async (req, res) => {
+    try {
+      const { image } = req.body;
+
+      // Forward the request to Gradio server
+      const gradioResponse = await fetch("http://localhost:7860/api/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: [image] }),
+      });
+
+      const result = await gradioResponse.json();
+      res.json(result);
+    } catch (error) {
+      console.error("Plant identification error:", error);
+      res.status(500).json({ message: "Failed to identify plant" });
+    }
+  });
+
+  const server = createServer(app);
+
+  // Cleanup Gradio process on server shutdown
+  process.on('SIGTERM', () => {
+    if (gradioProcess) {
+      gradioProcess.kill();
+    }
+  });
+
+  return server;
 }
