@@ -2,6 +2,7 @@ import { plants, plantSpecies, growthTimeline, type Plant, type InsertPlant, typ
 import { db } from "./db";
 import { eq, sql, desc, or, and, lt } from "drizzle-orm";
 import { ecoProducts, type EcoProduct } from "@shared/schema"; // Import ecoProducts
+import { swapListings, type SwapListing, type InsertSwapListing } from "@shared/schema";
 
 
 export interface IStorage {
@@ -19,6 +20,12 @@ export interface IStorage {
   getEcoProducts(): Promise<EcoProduct[]>;
   getEcoProductsByCategory(category: string): Promise<EcoProduct[]>;
   getRecommendedProducts(plant: Plant): Promise<EcoProduct[]>;
+  // Swap listing methods
+  getSwapListings(): Promise<SwapListing[]>;
+  getSwapListing(id: number): Promise<SwapListing | undefined>;
+  createSwapListing(listing: InsertSwapListing): Promise<SwapListing>;
+  updateSwapListing(id: number, listing: Partial<SwapListing>): Promise<SwapListing | undefined>;
+  deleteSwapListing(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -150,6 +157,67 @@ export class DatabaseStorage implements IStorage {
 
     console.log("Found recommendations:", recommendations);
     return recommendations;
+  }
+
+  async getSwapListings(): Promise<SwapListing[]> {
+    console.log("Fetching all swap listings");
+    const listings = await db
+      .select()
+      .from(swapListings)
+      .orderBy(desc(swapListings.createdAt));
+    console.log("Fetched swap listings:", listings);
+    return listings;
+  }
+
+  async getSwapListing(id: number): Promise<SwapListing | undefined> {
+    console.log(`Fetching swap listing with id: ${id}`);
+    const [listing] = await db
+      .select()
+      .from(swapListings)
+      .where(eq(swapListings.id, id));
+    console.log("Fetched swap listing:", listing);
+    return listing;
+  }
+
+  async createSwapListing(listing: InsertSwapListing): Promise<SwapListing> {
+    console.log("Creating swap listing:", listing);
+    const [newListing] = await db
+      .insert(swapListings)
+      .values({
+        ...listing,
+        status: "available",
+      })
+      .returning();
+    console.log("Created swap listing:", newListing);
+    return newListing;
+  }
+
+  async updateSwapListing(
+    id: number,
+    update: Partial<SwapListing>
+  ): Promise<SwapListing | undefined> {
+    console.log(`Updating swap listing ${id} with:`, update);
+    const [updated] = await db
+      .update(swapListings)
+      .set({
+        ...update,
+        updatedAt: new Date(),
+      })
+      .where(eq(swapListings.id, id))
+      .returning();
+    console.log("Updated swap listing:", updated);
+    return updated;
+  }
+
+  async deleteSwapListing(id: number): Promise<boolean> {
+    console.log(`Deleting swap listing with id: ${id}`);
+    const [deleted] = await db
+      .delete(swapListings)
+      .where(eq(swapListings.id, id))
+      .returning();
+    const success = !!deleted;
+    console.log("Delete success:", success);
+    return success;
   }
 }
 

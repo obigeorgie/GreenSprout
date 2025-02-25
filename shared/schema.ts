@@ -60,6 +60,7 @@ export const plantsRelations = relations(plants, ({ one, many }) => ({
   }),
   timeline: many(growthTimeline),
   recommendedProducts: many(ecoProducts), // Added relation for eco-products
+  swapListings: many(swapListings), // Add this line
 }));
 
 export const plantSpeciesRelations = relations(plantSpecies, ({ many }) => ({
@@ -86,6 +87,28 @@ export const ecoProducts = pgTable("eco_products", {
   carbonFootprint: text("carbon_footprint"), // Optional carbon footprint rating
 });
 
+
+// Plant swap marketplace tables
+export const swapListings = pgTable("swap_listings", {
+  id: serial("id").primaryKey(),
+  plantId: integer("plant_id").references(() => plants.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  location: text("location").notNull(),
+  contactPreference: text("contact_preference").notNull(), // "email" or "in_app"
+  swapPreferences: text("swap_preferences").notNull(),
+  status: text("status").default("available").notNull(), // "available", "pending", "completed"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Add new relations
+export const swapListingsRelations = relations(swapListings, ({ one }) => ({
+  plant: one(plants, {
+    fields: [swapListings.plantId],
+    references: [plants.id],
+  }),
+}));
 
 // Schema for inserting growth timeline entries
 export const insertGrowthTimelineSchema = createInsertSchema(growthTimeline)
@@ -125,6 +148,17 @@ export const insertPlantSchema = createInsertSchema(plants)
 export const insertEcoProductSchema = createInsertSchema(ecoProducts)
   .omit({ id: true });
 
+// Add schema for creating swap listings
+export const insertSwapListingSchema = createInsertSchema(swapListings)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({
+    title: z.string().min(1, "Title is required"),
+    description: z.string().min(1, "Description is required"),
+    location: z.string().min(1, "Location is required"),
+    contactPreference: z.enum(["email", "in_app"]),
+    swapPreferences: z.string().min(1, "Swap preferences are required"),
+  });
+
 // Types
 export type PlantSpecies = typeof plantSpecies.$inferSelect;
 export type InsertPlantSpecies = z.infer<typeof insertPlantSpeciesSchema>;
@@ -134,6 +168,8 @@ export type GrowthTimeline = typeof growthTimeline.$inferSelect;
 export type InsertGrowthTimeline = z.infer<typeof insertGrowthTimelineSchema>;
 export type EcoProduct = typeof ecoProducts.$inferSelect;
 export type InsertEcoProduct = z.infer<typeof insertEcoProductSchema>;
+export type SwapListing = typeof swapListings.$inferSelect;
+export type InsertSwapListing = z.infer<typeof insertSwapListingSchema>;
 
 // Care guide data structure (keep existing)
 export const careGuides = {

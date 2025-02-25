@@ -7,6 +7,7 @@ import Home from "@/pages/home";
 import AddPlant from "@/pages/add-plant";
 import PlantDetail from "@/pages/plant-detail";
 import IdentifyPlant from "@/pages/identify";
+import Marketplace from "@/pages/marketplace";
 import MobileNav from "@/components/mobile-nav";
 
 function Router() {
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/add" component={AddPlant} />
       <Route path="/identify" component={IdentifyPlant} />
       <Route path="/plant/:id" component={PlantDetail} />
+      <Route path="/marketplace" component={Marketplace} />
       <Route component={NotFound} />
     </Switch>
   );

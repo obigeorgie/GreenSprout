@@ -150,6 +150,49 @@ export async function registerRoutes(app: Express) {
     res.json(recommendations);
   });
 
+  // Plant swap marketplace routes
+  app.get("/api/swap-listings", async (_req, res) => {
+    const listings = await storage.getSwapListings();
+    res.json(listings);
+  });
+
+  app.get("/api/swap-listings/:id", async (req, res) => {
+    const listing = await storage.getSwapListing(Number(req.params.id));
+    if (!listing) {
+      return res.status(404).json({ message: "Swap listing not found" });
+    }
+    res.json(listing);
+  });
+
+  app.post("/api/swap-listings", async (req, res) => {
+    try {
+      const listingData = insertSwapListingSchema.parse(req.body);
+      const listing = await storage.createSwapListing(listingData);
+      res.status(201).json(listing);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.patch("/api/swap-listings/:id", async (req, res) => {
+    const listing = await storage.updateSwapListing(Number(req.params.id), req.body);
+    if (!listing) {
+      return res.status(404).json({ message: "Swap listing not found" });
+    }
+    res.json(listing);
+  });
+
+  app.delete("/api/swap-listings/:id", async (req, res) => {
+    const success = await storage.deleteSwapListing(Number(req.params.id));
+    if (!success) {
+      return res.status(404).json({ message: "Swap listing not found" });
+    }
+    res.status(204).end();
+  });
+
   const server = createServer(app);
 
   // Cleanup Gradio process on server shutdown
