@@ -1,10 +1,11 @@
+import { useState, useEffect } from "react";
 import { type Plant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { Droplets, Sun, Sprout } from "lucide-react";
+import { Droplets, Sun, Sprout, Bell, BellOff } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { requestNotificationPermission, showNotification, checkPlantCareNotifications } from "@/lib/notifications";
 
 interface CareScheduleProps {
   plant: Plant;
@@ -14,6 +15,27 @@ interface CareScheduleProps {
 export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
   const { toast } = useToast();
   const [updating, setUpdating] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  useEffect(() => {
+    // Check if notifications are already enabled
+    setNotificationsEnabled(Notification.permission === "granted");
+
+    // Set up periodic checks for notifications
+    const checkInterval = setInterval(() => {
+      if (Notification.permission === "granted") {
+        const notifications = checkPlantCareNotifications(plant);
+        notifications.forEach(notification => {
+          showNotification(notification.title, {
+            body: notification.body,
+            icon: notification.icon,
+          });
+        });
+      }
+    }, 60 * 60 * 1000); // Check every hour
+
+    return () => clearInterval(checkInterval);
+  }, [plant]);
 
   const handleWater = async () => {
     try {
@@ -59,8 +81,51 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
     }
   };
 
+  const toggleNotifications = async () => {
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+    } else {
+      const granted = await requestNotificationPermission();
+      setNotificationsEnabled(granted);
+      if (granted) {
+        toast({
+          title: "Notifications enabled",
+          description: "You'll receive reminders for plant care tasks.",
+        });
+      } else {
+        toast({
+          title: "Notifications disabled",
+          description: "Please enable notifications in your browser settings to receive reminders.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold">Care Schedule</h3>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleNotifications}
+          className="gap-2"
+        >
+          {notificationsEnabled ? (
+            <>
+              <Bell className="h-4 w-4" />
+              Notifications On
+            </>
+          ) : (
+            <>
+              <BellOff className="h-4 w-4" />
+              Notifications Off
+            </>
+          )}
+        </Button>
+      </div>
+
       <div className="flex items-center justify-between p-4 border rounded-lg">
         <div className="flex items-center gap-2">
           <Droplets className="h-5 w-5 text-primary" />
