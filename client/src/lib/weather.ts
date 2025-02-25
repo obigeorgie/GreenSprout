@@ -17,17 +17,17 @@ interface WeatherParams {
 
 export async function fetchWeather({ latitude, longitude }: WeatherParams): Promise<WeatherData> {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,relativehumidity_2m,precipitation&timezone=auto`;
-  
+
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch weather data');
   }
-  
+
   const data = await response.json();
-  
+
   // Get current hour's data
   const currentHour = new Date().getHours();
-  
+
   return {
     temperature: data.hourly.temperature_2m[currentHour],
     humidity: data.hourly.relativehumidity_2m[currentHour],
@@ -38,10 +38,10 @@ export async function fetchWeather({ latitude, longitude }: WeatherParams): Prom
 
 export function getWateringRecommendation(plant: {
   wateringFrequency: number;
-  lastWatered: string | null;
+  lastWatered: Date | null;
 }, weather: WeatherData): string {
   const daysToNextWatering = plant.lastWatered
-    ? Math.ceil((new Date(plant.lastWatered).getTime() + (plant.wateringFrequency * 24 * 60 * 60 * 1000) - Date.now()) / (24 * 60 * 60 * 1000))
+    ? Math.ceil((plant.lastWatered.getTime() + (plant.wateringFrequency * 24 * 60 * 60 * 1000) - Date.now()) / (24 * 60 * 60 * 1000))
     : 0;
 
   if (weather.isRaining) {
