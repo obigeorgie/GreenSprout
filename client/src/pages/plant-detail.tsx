@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import CareSchedule from "@/components/care-schedule";
 import { careGuides } from "@/lib/plant-care-guides";
+import WeatherCare from "@/components/weather-care";
 
 export default function PlantDetail() {
   const [match, params] = useRoute("/plant/:id");
@@ -116,6 +117,11 @@ export default function PlantDetail() {
               })
             }
           />
+        </section>
+
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Weather-Based Care</h2>
+          <WeatherCare plant={plant} />
         </section>
 
         <section>
