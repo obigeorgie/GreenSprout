@@ -1,4 +1,4 @@
-import { plants, type Plant, type InsertPlant } from "@shared/schema";
+import { plants, plantSpecies, type Plant, type InsertPlant, type PlantSpecies } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
 
@@ -8,6 +8,8 @@ export interface IStorage {
   createPlant(plant: InsertPlant): Promise<Plant>;
   updatePlant(id: number, plant: Partial<Plant>): Promise<Plant | undefined>;
   deletePlant(id: number): Promise<boolean>;
+  getPlantSpecies(): Promise<PlantSpecies[]>;
+  getPlantSpecies(id: number): Promise<PlantSpecies | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -59,6 +61,20 @@ export class DatabaseStorage implements IStorage {
       .returning();
     console.log("Delete result:", !!deleted);
     return !!deleted;
+  }
+
+  async getPlantSpecies(): Promise<PlantSpecies[]> {
+    console.log("Fetching all plant species");
+    const result = await db.select().from(plantSpecies);
+    console.log("Fetched plant species:", result);
+    return result;
+  }
+
+  async getPlantSpecies(id: number): Promise<PlantSpecies | undefined> {
+    console.log(`Fetching plant species with id: ${id}`);
+    const [species] = await db.select().from(plantSpecies).where(eq(plantSpecies.id, id));
+    console.log("Fetched plant species:", species);
+    return species;
   }
 }
 

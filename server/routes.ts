@@ -5,6 +5,7 @@ import { insertPlantSchema } from "@shared/schema";
 import { ZodError } from "zod";
 
 export async function registerRoutes(app: Express) {
+  // Existing plant routes
   app.get("/api/plants", async (_req, res) => {
     const plants = await storage.getPlants();
     res.json(plants);
@@ -46,6 +47,20 @@ export async function registerRoutes(app: Express) {
       return res.status(404).json({ message: "Plant not found" });
     }
     res.status(204).end();
+  });
+
+  // New plant species routes
+  app.get("/api/plant-species", async (_req, res) => {
+    const species = await storage.getPlantSpecies();
+    res.json(species);
+  });
+
+  app.get("/api/plant-species/:id", async (req, res) => {
+    const species = await storage.getPlantSpecies(Number(req.params.id));
+    if (!species) {
+      return res.status(404).json({ message: "Plant species not found" });
+    }
+    res.json(species);
   });
 
   return createServer(app);

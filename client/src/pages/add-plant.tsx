@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertPlantSchema, type InsertPlant } from "@shared/schema";
+import { insertPlantSchema, type InsertPlant, type PlantSpecies } from "@shared/schema";
 import { Form } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,12 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { PLANT_IMAGES } from "@/lib/plant-care-guides";
+import PlantSpeciesSearch from "@/components/plant-species-search";
 
 export default function AddPlant() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  
+
   const form = useForm<InsertPlant>({
     resolver: zodResolver(insertPlantSchema),
     defaultValues: {
@@ -48,6 +49,12 @@ export default function AddPlant() {
     }
   };
 
+  const handleSpeciesSelect = (species: PlantSpecies) => {
+    form.setValue("name", species.commonName);
+    form.setValue("speciesId", species.id);
+    form.setValue("image", species.image);
+  };
+
   return (
     <div className="py-8">
       <h1 className="text-3xl font-bold mb-6">Add New Plant</h1>
@@ -55,21 +62,16 @@ export default function AddPlant() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-4">
             <div>
+              <label className="text-sm font-medium">Plant Species</label>
+              <PlantSpeciesSearch onSelect={handleSpeciesSelect} />
+            </div>
+
+            <div>
               <label className="text-sm font-medium">Plant Name</label>
               <Input {...form.register("name")} />
               {form.formState.errors.name && (
                 <p className="text-sm text-destructive mt-1">
                   {form.formState.errors.name.message}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Species</label>
-              <Input {...form.register("species")} />
-              {form.formState.errors.species && (
-                <p className="text-sm text-destructive mt-1">
-                  {form.formState.errors.species.message}
                 </p>
               )}
             </div>

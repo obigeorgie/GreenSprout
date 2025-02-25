@@ -1,25 +1,65 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
+// Plant species database table
+export const plantSpecies = pgTable("plant_species", {
+  id: serial("id").primaryKey(),
+  commonName: text("common_name").notNull(),
+  scientificName: text("scientific_name").notNull(),
+  description: text("description").notNull(),
+  careInstructions: text("care_instructions").notNull(),
+  wateringInstructions: text("watering_instructions").notNull(),
+  sunlightRequirements: text("sunlight_requirements").notNull(),
+  soilRequirements: text("soil_requirements").notNull(),
+  idealTemperature: text("ideal_temperature").notNull(),
+  idealHumidity: text("ideal_humidity").notNull(),
+  growthHabit: text("growth_habit").notNull(),
+  toxicity: text("toxicity").notNull(),
+  image: text("image").notNull(),
+}, (table) => {
+  return {
+    scientificNameIdx: uniqueIndex("scientific_name_idx").on(table.scientificName),
+  }
+});
+
+// Modify existing plants table to reference plant species
 export const plants = pgTable("plants", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  species: text("species").notNull(),
+  speciesId: integer("species_id").references(() => plantSpecies.id),
   image: text("image").notNull(),
-  wateringFrequency: integer("watering_frequency").notNull(), // Days between watering
+  wateringFrequency: integer("watering_frequency").notNull(),
   lastWatered: timestamp("last_watered"),
   sunlightNeeds: text("sunlight_needs").notNull(),
-  fertilizerFrequency: integer("fertilizer_frequency").notNull(), // Days between fertilizing
+  fertilizerFrequency: integer("fertilizer_frequency").notNull(),
   lastFertilized: timestamp("last_fertilized"),
   notes: text("notes"),
 });
 
+// Define relations
+export const plantsRelations = relations(plants, ({ one }) => ({
+  species: one(plantSpecies, {
+    fields: [plants.speciesId],
+    references: [plantSpecies.id],
+  }),
+}));
+
+export const plantSpeciesRelations = relations(plantSpecies, ({ many }) => ({
+  plants: many(plants),
+}));
+
+// Schema for inserting new plant species
+export const insertPlantSpeciesSchema = createInsertSchema(plantSpecies)
+  .omit({ id: true });
+
+// Schema for inserting plants (updated)
 export const insertPlantSchema = createInsertSchema(plants)
   .omit({ id: true })
   .extend({
     name: z.string().min(1, "Plant name is required"),
-    species: z.string().min(1, "Species is required"),
+    speciesId: z.number().optional(),
     wateringFrequency: z.number().min(1, "Watering frequency must be at least 1 day"),
     fertilizerFrequency: z.number().min(1, "Fertilizer frequency must be at least 1 day"),
     sunlightNeeds: z.enum(["low", "medium", "high"], {
@@ -27,10 +67,13 @@ export const insertPlantSchema = createInsertSchema(plants)
     }),
   });
 
+// Types
+export type PlantSpecies = typeof plantSpecies.$inferSelect;
+export type InsertPlantSpecies = z.infer<typeof insertPlantSpeciesSchema>;
 export type Plant = typeof plants.$inferSelect;
 export type InsertPlant = z.infer<typeof insertPlantSchema>;
 
-// Care guide data structure
+// Care guide data structure (keep existing)
 export const careGuides = {
   low: {
     sunlight: "Place in low-light areas, avoid direct sun",
