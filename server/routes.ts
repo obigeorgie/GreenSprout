@@ -1,11 +1,12 @@
 import type { Express } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
-import { insertPlantSchema, insertGrowthTimelineSchema } from "@shared/schema";
+import { insertPlantSchema, insertGrowthTimelineSchema, insertSwapListingSchema, insertChatMessageSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
+import { generatePlantCareResponse } from "./chat";
 
 let gradioProcess: any = null;
 
@@ -193,8 +194,49 @@ export async function registerRoutes(app: Express) {
     res.status(204).end();
   });
 
-  const server = createServer(app);
+  // Chat routes
+  app.get("/api/chat-messages", async (_req, res) => {
+    try {
+      const messages = await storage.getChatMessages();
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching chat messages:", error);
+      res.status(500).json({ message: "Failed to fetch chat messages" });
+    }
+  });
 
+  app.post("/api/chat-messages", async (req, res) => {
+    try {
+      // Validate and store user message
+      const userMessage = insertChatMessageSchema.parse(req.body);
+      const savedUserMessage = await storage.createChatMessage(userMessage);
+
+      // Get conversation history for context
+      const messages = await storage.getChatMessages();
+
+      // Generate AI response
+      const assistantResponse = await generatePlantCareResponse(messages);
+
+      // Store AI response
+      const savedAssistantMessage = await storage.createChatMessage({
+        role: "assistant",
+        content: assistantResponse,
+      });
+
+      res.json({
+        userMessage: savedUserMessage,
+        assistantMessage: savedAssistantMessage,
+      });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("Error processing chat message:", err);
+      res.status(500).json({ message: "Failed to process message" });
+    }
+  });
+
+  const server = createServer(app);
   // Cleanup Gradio process on server shutdown
   process.on('SIGTERM', () => {
     if (gradioProcess) {

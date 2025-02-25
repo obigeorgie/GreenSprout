@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -189,3 +189,28 @@ export const careGuides = {
     fertilizer: "Feed with balanced fertilizer every 4-6 weeks",
   },
 } as const;
+
+// Add chat message types to existing schema.ts
+
+// Add after existing tables...
+
+export const chatMessages = pgTable("chat_messages", {
+  id: serial("id").primaryKey(),
+  role: text("role").notNull(), // "user" or "assistant"
+  content: text("content").notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  metadata: jsonb("metadata"), // For storing additional message context
+});
+
+// Add chat message schema
+export const insertChatMessageSchema = createInsertSchema(chatMessages)
+  .omit({ id: true, timestamp: true })
+  .extend({
+    role: z.enum(["user", "assistant"]),
+    content: z.string().min(1, "Message cannot be empty"),
+    metadata: z.record(z.unknown()).optional(),
+  });
+
+// Add types
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;

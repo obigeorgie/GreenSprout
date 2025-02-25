@@ -1,9 +1,9 @@
 import { plants, plantSpecies, growthTimeline, type Plant, type InsertPlant, type PlantSpecies, type GrowthTimeline, type InsertGrowthTimeline } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, or, and, lt } from "drizzle-orm";
-import { ecoProducts, type EcoProduct } from "@shared/schema"; // Import ecoProducts
+import { ecoProducts, type EcoProduct } from "@shared/schema";
 import { swapListings, type SwapListing, type InsertSwapListing } from "@shared/schema";
-
+import { chatMessages, type ChatMessage, type InsertChatMessage } from "@shared/schema";
 
 export interface IStorage {
   getPlants(): Promise<Plant[]>;
@@ -26,6 +26,9 @@ export interface IStorage {
   createSwapListing(listing: InsertSwapListing): Promise<SwapListing>;
   updateSwapListing(id: number, listing: Partial<SwapListing>): Promise<SwapListing | undefined>;
   deleteSwapListing(id: number): Promise<boolean>;
+  // Chat message methods
+  getChatMessages(): Promise<ChatMessage[]>;
+  createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -218,6 +221,26 @@ export class DatabaseStorage implements IStorage {
     const success = !!deleted;
     console.log("Delete success:", success);
     return success;
+  }
+
+  async getChatMessages(): Promise<ChatMessage[]> {
+    console.log("Fetching chat messages");
+    const messages = await db
+      .select()
+      .from(chatMessages)
+      .orderBy(desc(chatMessages.timestamp));
+    console.log("Fetched chat messages:", messages);
+    return messages;
+  }
+
+  async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
+    console.log("Creating chat message:", message);
+    const [newMessage] = await db
+      .insert(chatMessages)
+      .values(message)
+      .returning();
+    console.log("Created chat message:", newMessage);
+    return newMessage;
   }
 }
 

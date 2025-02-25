@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, PlusCircle, Camera, Leaf } from "lucide-react";
+import { Home, PlusCircle, Camera, Leaf, MessageSquare } from "lucide-react";
 
 export default function MobileNav() {
   const [location] = useLocation();
@@ -23,6 +23,12 @@ export default function MobileNav() {
           <a className={`flex flex-col items-center p-2 ${location.startsWith("/marketplace") ? "text-primary" : "text-muted-foreground"}`}>
             <Leaf className="h-6 w-6" />
             <span className="text-xs">Swap</span>
+          </a>
+        </Link>
+        <Link href="/chat">
+          <a className={`flex flex-col items-center p-2 ${location === "/chat" ? "text-primary" : "text-muted-foreground"}`}>
+            <MessageSquare className="h-6 w-6" />
+            <span className="text-xs">Chat</span>
           </a>
         </Link>
         <Link href="/add">
