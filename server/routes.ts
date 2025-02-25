@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
-import { insertPlantSchema } from "@shared/schema";
+import { insertPlantSchema, insertGrowthTimelineSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { spawn } from "child_process";
 import path from "path";
@@ -72,7 +72,7 @@ export async function registerRoutes(app: Express) {
     res.status(204).end();
   });
 
-  // New plant species routes
+  // Plant species routes
   app.get("/api/plant-species", async (_req, res) => {
     const species = await storage.getPlantSpecies();
     res.json(species);
@@ -86,7 +86,31 @@ export async function registerRoutes(app: Express) {
     res.json(species);
   });
 
-  // New route for plant identification
+  // Growth timeline routes
+  app.get("/api/plants/:id/timeline", async (req, res) => {
+    const plantId = Number(req.params.id);
+    const timeline = await storage.getGrowthTimeline(plantId);
+    res.json(timeline);
+  });
+
+  app.post("/api/plants/:id/timeline", async (req, res) => {
+    try {
+      const plantId = Number(req.params.id);
+      const entryData = insertGrowthTimelineSchema.parse({
+        ...req.body,
+        plantId,
+      });
+      const entry = await storage.addGrowthTimelineEntry(entryData);
+      res.status(201).json(entry);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  // Plant identification route
   app.post("/api/identify-plant", async (req, res) => {
     try {
       const { image } = req.body;

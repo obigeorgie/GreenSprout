@@ -1,6 +1,6 @@
-import { plants, plantSpecies, type Plant, type InsertPlant, type PlantSpecies } from "@shared/schema";
+import { plants, plantSpecies, growthTimeline, type Plant, type InsertPlant, type PlantSpecies, type GrowthTimeline, type InsertGrowthTimeline } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 
 export interface IStorage {
   getPlants(): Promise<Plant[]>;
@@ -10,6 +10,9 @@ export interface IStorage {
   deletePlant(id: number): Promise<boolean>;
   getPlantSpecies(): Promise<PlantSpecies[]>;
   getPlantSpecies(id: number): Promise<PlantSpecies | undefined>;
+  // New timeline methods
+  getGrowthTimeline(plantId: number): Promise<GrowthTimeline[]>;
+  addGrowthTimelineEntry(entry: InsertGrowthTimeline): Promise<GrowthTimeline>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -75,6 +78,27 @@ export class DatabaseStorage implements IStorage {
     const [species] = await db.select().from(plantSpecies).where(eq(plantSpecies.id, id));
     console.log("Fetched plant species:", species);
     return species;
+  }
+
+  async getGrowthTimeline(plantId: number): Promise<GrowthTimeline[]> {
+    console.log(`Fetching growth timeline for plant ${plantId}`);
+    const entries = await db
+      .select()
+      .from(growthTimeline)
+      .where(eq(growthTimeline.plantId, plantId))
+      .orderBy(desc(growthTimeline.entryDate));
+    console.log("Fetched timeline entries:", entries);
+    return entries;
+  }
+
+  async addGrowthTimelineEntry(entry: InsertGrowthTimeline): Promise<GrowthTimeline> {
+    console.log("Adding growth timeline entry:", entry);
+    const [timelineEntry] = await db
+      .insert(growthTimeline)
+      .values(entry)
+      .returning();
+    console.log("Added timeline entry:", timelineEntry);
+    return timelineEntry;
   }
 }
 

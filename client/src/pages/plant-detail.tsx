@@ -21,6 +21,7 @@ import { useLocation } from "wouter";
 import CareSchedule from "@/components/care-schedule";
 import { careGuides } from "@/lib/plant-care-guides";
 import WeatherCare from "@/components/weather-care";
+import GrowthTimeline from "@/components/growth-timeline";
 
 export default function PlantDetail() {
   const [match, params] = useRoute("/plant/:id");
@@ -82,7 +83,9 @@ export default function PlantDetail() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">{plant.name}</h1>
-          <p className="text-muted-foreground">{plant.species}</p>
+          {plant.speciesId && (
+            <p className="text-muted-foreground">{plant.species}</p>
+          )}
         </div>
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -107,6 +110,11 @@ export default function PlantDetail() {
       </div>
 
       <div className="space-y-6">
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Growth Timeline</h2>
+          <GrowthTimeline plantId={plant.id} />
+        </section>
+
         <section>
           <h2 className="text-xl font-semibold mb-4">Care Schedule</h2>
           <CareSchedule

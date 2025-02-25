@@ -36,19 +36,58 @@ export const plants = pgTable("plants", {
   fertilizerFrequency: integer("fertilizer_frequency").notNull(),
   lastFertilized: timestamp("last_fertilized"),
   notes: text("notes"),
+  acquiredAt: timestamp("acquired_at").defaultNow().notNull(),
+});
+
+// New growth timeline entries table
+export const growthTimeline = pgTable("growth_timeline", {
+  id: serial("id").primaryKey(),
+  plantId: integer("plant_id").references(() => plants.id).notNull(),
+  entryDate: timestamp("entry_date").defaultNow().notNull(),
+  description: text("description").notNull(),
+  image: text("image"),
+  height: integer("height"), // in centimeters
+  milestone: boolean("milestone").default(false).notNull(),
+  milestoneType: text("milestone_type"), // e.g., "new_leaf", "flowering", "repotted"
+  celebrationEmoji: text("celebration_emoji"), // e.g., "🌱", "🌺", "🎉"
 });
 
 // Define relations
-export const plantsRelations = relations(plants, ({ one }) => ({
+export const plantsRelations = relations(plants, ({ one, many }) => ({
   species: one(plantSpecies, {
     fields: [plants.speciesId],
     references: [plantSpecies.id],
   }),
+  timeline: many(growthTimeline),
 }));
 
 export const plantSpeciesRelations = relations(plantSpecies, ({ many }) => ({
   plants: many(plants),
 }));
+
+export const growthTimelineRelations = relations(growthTimeline, ({ one }) => ({
+  plant: one(plants, {
+    fields: [growthTimeline.plantId],
+    references: [plants.id],
+  }),
+}));
+
+// Schema for inserting growth timeline entries
+export const insertGrowthTimelineSchema = createInsertSchema(growthTimeline)
+  .omit({ id: true })
+  .extend({
+    description: z.string().min(1, "Description is required"),
+    height: z.number().min(1).optional(),
+    milestone: z.boolean().default(false),
+    milestoneType: z.enum([
+      "new_leaf",
+      "flowering",
+      "repotted",
+      "height_milestone",
+      "other"
+    ]).optional(),
+    celebrationEmoji: z.string().optional(),
+  });
 
 // Schema for inserting new plant species
 export const insertPlantSpeciesSchema = createInsertSchema(plantSpecies)
@@ -56,7 +95,7 @@ export const insertPlantSpeciesSchema = createInsertSchema(plantSpecies)
 
 // Schema for inserting plants (updated)
 export const insertPlantSchema = createInsertSchema(plants)
-  .omit({ id: true })
+  .omit({ id: true, acquiredAt: true })
   .extend({
     name: z.string().min(1, "Plant name is required"),
     speciesId: z.number().optional(),
@@ -72,6 +111,8 @@ export type PlantSpecies = typeof plantSpecies.$inferSelect;
 export type InsertPlantSpecies = z.infer<typeof insertPlantSpeciesSchema>;
 export type Plant = typeof plants.$inferSelect;
 export type InsertPlant = z.infer<typeof insertPlantSchema>;
+export type GrowthTimeline = typeof growthTimeline.$inferSelect;
+export type InsertGrowthTimeline = z.infer<typeof insertGrowthTimelineSchema>;
 
 // Care guide data structure (keep existing)
 export const careGuides = {
