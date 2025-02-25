@@ -21,9 +21,19 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
     // Check if notifications are already enabled
     setNotificationsEnabled(Notification.permission === "granted");
 
-    // Set up periodic checks for notifications
-    const checkInterval = setInterval(() => {
-      if (Notification.permission === "granted") {
+    // Only set up notifications if they're enabled
+    if (Notification.permission === "granted") {
+      // Initial check for any pending notifications
+      const notifications = checkPlantCareNotifications(plant);
+      notifications.forEach(notification => {
+        showNotification(notification.title, {
+          body: notification.body,
+          icon: notification.icon,
+        });
+      });
+
+      // Set up periodic checks
+      const checkInterval = setInterval(() => {
         const notifications = checkPlantCareNotifications(plant);
         notifications.forEach(notification => {
           showNotification(notification.title, {
@@ -31,10 +41,10 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
             icon: notification.icon,
           });
         });
-      }
-    }, 60 * 60 * 1000); // Check every hour
+      }, 60 * 60 * 1000); // Check every hour
 
-    return () => clearInterval(checkInterval);
+      return () => clearInterval(checkInterval);
+    }
   }, [plant]);
 
   const handleWater = async () => {
@@ -82,23 +92,55 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
   };
 
   const toggleNotifications = async () => {
-    if (notificationsEnabled) {
-      setNotificationsEnabled(false);
-    } else {
-      const granted = await requestNotificationPermission();
-      setNotificationsEnabled(granted);
-      if (granted) {
-        toast({
-          title: "Notifications enabled",
-          description: "You'll receive reminders for plant care tasks.",
-        });
-      } else {
+    try {
+      if (notificationsEnabled) {
+        setNotificationsEnabled(false);
         toast({
           title: "Notifications disabled",
-          description: "Please enable notifications in your browser settings to receive reminders.",
-          variant: "destructive",
+          description: "You won't receive plant care reminders.",
         });
+      } else {
+        if (!("Notification" in window)) {
+          toast({
+            title: "Notifications not supported",
+            description: "Your browser doesn't support notifications. Try using a modern browser like Chrome or Firefox.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (!window.isSecureContext) {
+          toast({
+            title: "Secure context required",
+            description: "Notifications require a secure (HTTPS) connection.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const granted = await requestNotificationPermission();
+        setNotificationsEnabled(granted);
+
+        if (granted) {
+          toast({
+            title: "Notifications enabled",
+            description: "You'll receive reminders for plant care tasks.",
+          });
+        } else {
+          toast({
+            title: "Notifications blocked",
+            description: "Please enable notifications in your browser settings to receive reminders.",
+            variant: "destructive",
+          });
+        }
       }
+    } catch (error) {
+      console.error("Error toggling notifications:", error);
+      toast({
+        title: "Error",
+        description: "Failed to toggle notifications. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

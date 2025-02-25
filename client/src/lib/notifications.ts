@@ -1,24 +1,44 @@
 export async function requestNotificationPermission(): Promise<boolean> {
+  // First check if notifications are supported
   if (!("Notification" in window)) {
     console.warn("This browser does not support notifications");
     return false;
   }
 
-  if (Notification.permission === "granted") {
-    return true;
+  // Check if we're in a secure context (HTTPS or localhost)
+  if (!window.isSecureContext) {
+    console.warn("Notifications require a secure context (HTTPS)");
+    return false;
   }
 
-  if (Notification.permission !== "denied") {
-    const permission = await Notification.requestPermission();
-    return permission === "granted";
-  }
+  try {
+    if (Notification.permission === "granted") {
+      return true;
+    }
 
-  return false;
+    if (Notification.permission !== "denied") {
+      const permission = await Notification.requestPermission();
+      return permission === "granted";
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Error requesting notification permission:", error);
+    return false;
+  }
 }
 
 export function showNotification(title: string, options?: NotificationOptions) {
+  if (!("Notification" in window)) {
+    return;
+  }
+
   if (Notification.permission === "granted") {
-    return new Notification(title, options);
+    try {
+      return new Notification(title, options);
+    } catch (error) {
+      console.error("Error showing notification:", error);
+    }
   }
 }
 
