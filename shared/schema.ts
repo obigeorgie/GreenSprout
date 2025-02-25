@@ -59,6 +59,7 @@ export const plantsRelations = relations(plants, ({ one, many }) => ({
     references: [plantSpecies.id],
   }),
   timeline: many(growthTimeline),
+  recommendedProducts: many(ecoProducts), // Added relation for eco-products
 }));
 
 export const plantSpeciesRelations = relations(plantSpecies, ({ many }) => ({
@@ -71,6 +72,20 @@ export const growthTimelineRelations = relations(growthTimeline, ({ one }) => ({
     references: [plants.id],
   }),
 }));
+
+// Add eco-friendly products table and types
+export const ecoProducts = pgTable("eco_products", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull(), // e.g., "fertilizer", "soil", "tools"
+  sustainabilityFeatures: text("sustainability_features").notNull(),
+  price: text("price").notNull(),
+  imageUrl: text("image_url").notNull(),
+  purchaseUrl: text("purchase_url").notNull(),
+  carbonFootprint: text("carbon_footprint"), // Optional carbon footprint rating
+});
+
 
 // Schema for inserting growth timeline entries
 export const insertGrowthTimelineSchema = createInsertSchema(growthTimeline)
@@ -106,6 +121,10 @@ export const insertPlantSchema = createInsertSchema(plants)
     }),
   });
 
+// Schema for inserting eco-friendly products
+export const insertEcoProductSchema = createInsertSchema(ecoProducts)
+  .omit({ id: true });
+
 // Types
 export type PlantSpecies = typeof plantSpecies.$inferSelect;
 export type InsertPlantSpecies = z.infer<typeof insertPlantSpeciesSchema>;
@@ -113,6 +132,8 @@ export type Plant = typeof plants.$inferSelect;
 export type InsertPlant = z.infer<typeof insertPlantSchema>;
 export type GrowthTimeline = typeof growthTimeline.$inferSelect;
 export type InsertGrowthTimeline = z.infer<typeof insertGrowthTimelineSchema>;
+export type EcoProduct = typeof ecoProducts.$inferSelect;
+export type InsertEcoProduct = z.infer<typeof insertEcoProductSchema>;
 
 // Care guide data structure (keep existing)
 export const careGuides = {

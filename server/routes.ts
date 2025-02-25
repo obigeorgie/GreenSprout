@@ -130,6 +130,26 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Eco-friendly product routes
+  app.get("/api/eco-products", async (_req, res) => {
+    const products = await storage.getEcoProducts();
+    res.json(products);
+  });
+
+  app.get("/api/eco-products/category/:category", async (req, res) => {
+    const products = await storage.getEcoProductsByCategory(req.params.category);
+    res.json(products);
+  });
+
+  app.get("/api/plants/:id/recommendations", async (req, res) => {
+    const plant = await storage.getPlant(Number(req.params.id));
+    if (!plant) {
+      return res.status(404).json({ message: "Plant not found" });
+    }
+    const recommendations = await storage.getRecommendedProducts(plant);
+    res.json(recommendations);
+  });
+
   const server = createServer(app);
 
   // Cleanup Gradio process on server shutdown

@@ -1,6 +1,8 @@
 import { plants, plantSpecies, growthTimeline, type Plant, type InsertPlant, type PlantSpecies, type GrowthTimeline, type InsertGrowthTimeline } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, or, and, lt } from "drizzle-orm";
+import { ecoProducts, type EcoProduct } from "@shared/schema"; // Import ecoProducts
+
 
 export interface IStorage {
   getPlants(): Promise<Plant[]>;
@@ -13,6 +15,10 @@ export interface IStorage {
   // New timeline methods
   getGrowthTimeline(plantId: number): Promise<GrowthTimeline[]>;
   addGrowthTimelineEntry(entry: InsertGrowthTimeline): Promise<GrowthTimeline>;
+  // Eco-friendly product methods
+  getEcoProducts(): Promise<EcoProduct[]>;
+  getEcoProductsByCategory(category: string): Promise<EcoProduct[]>;
+  getRecommendedProducts(plant: Plant): Promise<EcoProduct[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -99,6 +105,51 @@ export class DatabaseStorage implements IStorage {
       .returning();
     console.log("Added timeline entry:", timelineEntry);
     return timelineEntry;
+  }
+
+  async getEcoProducts(): Promise<EcoProduct[]> {
+    console.log("Fetching all eco-friendly products");
+    const products = await db.select().from(ecoProducts);
+    console.log("Fetched eco-friendly products:", products);
+    return products;
+  }
+
+  async getEcoProductsByCategory(category: string): Promise<EcoProduct[]> {
+    console.log(`Fetching eco-friendly products for category: ${category}`);
+    const products = await db
+      .select()
+      .from(ecoProducts)
+      .where(eq(ecoProducts.category, category));
+    console.log("Fetched category products:", products);
+    return products;
+  }
+
+  async getRecommendedProducts(plant: Plant): Promise<EcoProduct[]> {
+    console.log(`Getting product recommendations for plant: ${plant.name}`);
+
+    // Get products based on plant needs
+    const recommendations = await db
+      .select()
+      .from(ecoProducts)
+      .where(
+        or(
+          // If plant needs frequent watering, recommend water-saving products
+          and(
+            eq(ecoProducts.category, "watering"),
+            lt(plant.wateringFrequency, 7)
+          ),
+          // If plant needs lots of fertilizer, recommend organic options
+          and(
+            eq(ecoProducts.category, "fertilizer"),
+            lt(plant.fertilizerFrequency, 30)
+          ),
+          // Always include eco-friendly soil options
+          eq(ecoProducts.category, "soil")
+        )
+      );
+
+    console.log("Found recommendations:", recommendations);
+    return recommendations;
   }
 }
 

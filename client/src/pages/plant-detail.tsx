@@ -22,6 +22,7 @@ import CareSchedule from "@/components/care-schedule";
 import { careGuides } from "@/lib/plant-care-guides";
 import WeatherCare from "@/components/weather-care";
 import GrowthTimeline from "@/components/growth-timeline";
+import EcoRecommendations from "@/components/eco-recommendations";
 
 export default function PlantDetail() {
   const [match, params] = useRoute("/plant/:id");
@@ -145,6 +146,10 @@ export default function PlantDetail() {
               <strong>Fertilizer:</strong> {careGuide.fertilizer}
             </p>
           </div>
+        </section>
+
+        <section>
+          <EcoRecommendations plant={plant} />
         </section>
 
         {plant.notes && (
