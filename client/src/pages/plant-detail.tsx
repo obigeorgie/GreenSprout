@@ -19,10 +19,11 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import CareSchedule from "@/components/care-schedule";
-import { careGuides } from "@/lib/plant-care-guides";
+import { careGuides } from "@shared/schema";
 import WeatherCare from "@/components/weather-care";
 import GrowthTimeline from "@/components/growth-timeline";
 import EcoRecommendations from "@/components/eco-recommendations";
+import PlantSoundtrack from "@/components/plant-soundtrack";
 
 export default function PlantDetail() {
   const [match, params] = useRoute("/plant/:id");
@@ -85,7 +86,9 @@ export default function PlantDetail() {
         <div>
           <h1 className="text-3xl font-bold">{plant.name}</h1>
           {plant.speciesId && (
-            <p className="text-muted-foreground">{plant.species}</p>
+            <p className="text-muted-foreground">
+              {plant.speciesId}
+            </p>
           )}
         </div>
         <AlertDialog>
@@ -111,6 +114,11 @@ export default function PlantDetail() {
       </div>
 
       <div className="space-y-6">
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Plant Soundtrack</h2>
+          <PlantSoundtrack plant={plant} />
+        </section>
+
         <section>
           <h2 className="text-xl font-semibold mb-4">Growth Timeline</h2>
           <GrowthTimeline plantId={plant.id} />

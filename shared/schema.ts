@@ -59,8 +59,9 @@ export const plantsRelations = relations(plants, ({ one, many }) => ({
     references: [plantSpecies.id],
   }),
   timeline: many(growthTimeline),
-  recommendedProducts: many(ecoProducts), // Added relation for eco-products
-  swapListings: many(swapListings), // Add this line
+  recommendedProducts: many(ecoProducts),
+  swapListings: many(swapListings),
+  soundtracks: many(plantSoundtracks), // Add this line
 }));
 
 export const plantSpeciesRelations = relations(plantSpecies, ({ many }) => ({
@@ -232,3 +233,18 @@ export const insertChatMessageSchema = createInsertSchema(chatMessages)
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type AssistantAction = typeof AssistantActionType[keyof typeof AssistantActionType];
+
+// Plant soundtrack preferences and history
+export const plantSoundtracks = pgTable("plant_soundtracks", {
+  id: serial("id").primaryKey(),
+  plantId: integer("plant_id").references(() => plants.id).notNull(),
+  bpm: integer("bpm").notNull(), // Tempo based on watering frequency
+  key: text("key").notNull(), // Musical key
+  mood: text("mood").notNull(), // Based on plant characteristics
+  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  duration: integer("duration").notNull(), // Length in seconds
+});
+
+// Add types
+export type PlantSoundtrack = typeof plantSoundtracks.$inferSelect;
+export type InsertPlantSoundtrack = typeof plantSoundtracks.$inferInsert;
