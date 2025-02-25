@@ -4,6 +4,8 @@ import { eq, sql, desc, or, and, lt } from "drizzle-orm";
 import { ecoProducts, type EcoProduct } from "@shared/schema";
 import { swapListings, type SwapListing, type InsertSwapListing } from "@shared/schema";
 import { chatMessages, type ChatMessage, type InsertChatMessage } from "@shared/schema";
+import { growthPredictions, type GrowthPrediction, type InsertGrowthPrediction } from "@shared/schema"; // Import the new schema
+
 
 export interface IStorage {
   getPlants(): Promise<Plant[]>;
@@ -29,6 +31,9 @@ export interface IStorage {
   // Chat message methods
   getChatMessages(): Promise<ChatMessage[]>;
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+  // Growth prediction methods
+  getGrowthPredictions(plantId: number): Promise<GrowthPrediction[]>;
+  createGrowthPrediction(prediction: InsertGrowthPrediction): Promise<GrowthPrediction>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -241,6 +246,27 @@ export class DatabaseStorage implements IStorage {
       .returning();
     console.log("Created chat message:", newMessage);
     return newMessage;
+  }
+
+  async getGrowthPredictions(plantId: number): Promise<GrowthPrediction[]> {
+    console.log(`Fetching growth predictions for plant ${plantId}`);
+    const predictions = await db
+      .select()
+      .from(growthPredictions)
+      .where(eq(growthPredictions.plantId, plantId))
+      .orderBy(growthPredictions.predictedDate);
+    console.log("Fetched predictions:", predictions);
+    return predictions;
+  }
+
+  async createGrowthPrediction(prediction: InsertGrowthPrediction): Promise<GrowthPrediction> {
+    console.log("Creating growth prediction:", prediction);
+    const [newPrediction] = await db
+      .insert(growthPredictions)
+      .values(prediction)
+      .returning();
+    console.log("Created prediction:", newPrediction);
+    return newPrediction;
   }
 }
 

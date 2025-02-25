@@ -24,6 +24,7 @@ import WeatherCare from "@/components/weather-care";
 import GrowthTimeline from "@/components/growth-timeline";
 import EcoRecommendations from "@/components/eco-recommendations";
 import PlantSoundtrack from "@/components/plant-soundtrack";
+import GrowthPrediction from "@/components/growth-prediction";
 
 export default function PlantDetail() {
   const [match, params] = useRoute("/plant/:id");
@@ -122,6 +123,11 @@ export default function PlantDetail() {
         <section>
           <h2 className="text-xl font-semibold mb-4">Growth Timeline</h2>
           <GrowthTimeline plantId={plant.id} />
+        </section>
+
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Growth Prediction</h2>
+          <GrowthPrediction plant={plant} />
         </section>
 
         <section>

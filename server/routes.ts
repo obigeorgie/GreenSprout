@@ -6,7 +6,11 @@ import { ZodError } from "zod";
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
-import { generatePlantCareResponse } from "./chat";
+import { generatePlantCareResponse, handleAssistantAction } from "./chat";
+import OpenAI from "openai";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 
 let gradioProcess: any = null;
 
@@ -130,6 +134,73 @@ export async function registerRoutes(app: Express) {
       res.status(500).json({ message: "Failed to identify plant" });
     }
   });
+
+  // Growth prediction routes
+  app.get("/api/plants/:id/growth-predictions", async (req, res) => {
+    try {
+      const predictions = await storage.getGrowthPredictions(Number(req.params.id));
+      res.json(predictions);
+    } catch (error) {
+      console.error("Error fetching growth predictions:", error);
+      res.status(500).json({ message: "Failed to fetch predictions" });
+    }
+  });
+
+  app.post("/api/plants/:id/generate-prediction", async (req, res) => {
+    try {
+      const plantId = Number(req.params.id);
+      const plant = await storage.getPlant(plantId);
+
+      if (!plant) {
+        return res.status(404).json({ message: "Plant not found" });
+      }
+
+      // Get growth timeline entries for context
+      const timeline = await storage.getGrowthTimeline(plantId);
+
+      // Generate prediction using OpenAI
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are a plant growth prediction expert. Based on the plant data and growth history, generate realistic growth predictions. Output should be valid JSON with predicted height, leaf count, dates, and confidence levels."
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              plant,
+              timeline,
+              predictionMonths: 3, // Generate 3 months of predictions
+            })
+          }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const predictions = JSON.parse(response.choices[0].message.content || "{}");
+
+      // Store predictions
+      const savedPredictions = await Promise.all(
+        predictions.map((pred: any) =>
+          storage.createGrowthPrediction({
+            plantId,
+            predictedHeight: pred.height,
+            predictedLeafCount: pred.leafCount,
+            predictedDate: new Date(pred.date),
+            confidence: pred.confidence,
+            factors: pred.factors,
+          })
+        )
+      );
+
+      res.json(savedPredictions);
+    } catch (error) {
+      console.error("Error generating growth prediction:", error);
+      res.status(500).json({ message: "Failed to generate prediction" });
+    }
+  });
+
 
   // Eco-friendly product routes
   app.get("/api/eco-products", async (_req, res) => {

@@ -62,6 +62,7 @@ export const plantsRelations = relations(plants, ({ one, many }) => ({
   recommendedProducts: many(ecoProducts),
   swapListings: many(swapListings),
   soundtracks: many(plantSoundtracks), // Add this line
+  predictions: many(growthPredictions), // Add this line
 }));
 
 export const plantSpeciesRelations = relations(plantSpecies, ({ many }) => ({
@@ -248,3 +249,21 @@ export const plantSoundtracks = pgTable("plant_soundtracks", {
 // Add types
 export type PlantSoundtrack = typeof plantSoundtracks.$inferSelect;
 export type InsertPlantSoundtrack = typeof plantSoundtracks.$inferInsert;
+
+// Growth prediction types and schemas
+export const growthPredictions = pgTable("growth_predictions", {
+  id: serial("id").primaryKey(),
+  plantId: integer("plant_id").references(() => plants.id).notNull(),
+  predictedHeight: integer("predicted_height").notNull(), // in centimeters
+  predictedLeafCount: integer("predicted_leaf_count").notNull(),
+  predictedDate: timestamp("predicted_date").notNull(),
+  confidence: integer("confidence").notNull(), // 0-100
+  factors: jsonb("factors").notNull(), // Environmental factors considered
+  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+});
+
+export const insertGrowthPredictionSchema = createInsertSchema(growthPredictions)
+  .omit({ id: true, generatedAt: true });
+
+export type GrowthPrediction = typeof growthPredictions.$inferSelect;
+export type InsertGrowthPrediction = z.infer<typeof insertGrowthPredictionSchema>;
