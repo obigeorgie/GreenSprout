@@ -164,7 +164,7 @@ export async function registerRoutes(app: Express) {
         messages: [
           {
             role: "system",
-            content: "You are a plant growth prediction expert. Based on the plant data and growth history, generate realistic growth predictions. Output should be valid JSON with predicted height, leaf count, dates, and confidence levels."
+            content: "You are a plant growth prediction expert. Based on the plant data and growth history, generate realistic growth predictions for the next 3 months. Return an array of predictions in this format: [{ height: number, leafCount: number, date: string (ISO format), confidence: number (0-100), factors: object }]"
           },
           {
             role: "user",
@@ -178,18 +178,19 @@ export async function registerRoutes(app: Express) {
         response_format: { type: "json_object" }
       });
 
-      const predictions = JSON.parse(response.choices[0].message.content || "{}");
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      const predictions = Array.isArray(result.predictions) ? result.predictions : [];
 
       // Store predictions
       const savedPredictions = await Promise.all(
-        predictions.map((pred: any) =>
+        predictions.map((pred) =>
           storage.createGrowthPrediction({
             plantId,
             predictedHeight: pred.height,
             predictedLeafCount: pred.leafCount,
             predictedDate: new Date(pred.date),
             confidence: pred.confidence,
-            factors: pred.factors,
+            factors: pred.factors || {},
           })
         )
       );
