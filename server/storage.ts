@@ -1,4 +1,6 @@
-import { type Plant, type InsertPlant } from "@shared/schema";
+import { plants, type Plant, type InsertPlant } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   getPlants(): Promise<Plant[]>;
@@ -8,48 +10,45 @@ export interface IStorage {
   deletePlant(id: number): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private plants: Map<number, Plant>;
-  private currentId: number;
-
-  constructor() {
-    this.plants = new Map();
-    this.currentId = 1;
-  }
-
+export class DatabaseStorage implements IStorage {
   async getPlants(): Promise<Plant[]> {
-    return Array.from(this.plants.values());
+    return await db.select().from(plants);
   }
 
   async getPlant(id: number): Promise<Plant | undefined> {
-    return this.plants.get(id);
+    const [plant] = await db.select().from(plants).where(eq(plants.id, id));
+    return plant;
   }
 
   async createPlant(insertPlant: InsertPlant): Promise<Plant> {
-    const id = this.currentId++;
-    const plant: Plant = {
-      ...insertPlant,
-      id,
-      lastWatered: null,
-      lastFertilized: null,
-      notes: insertPlant.notes || null
-    };
-    this.plants.set(id, plant);
+    const [plant] = await db
+      .insert(plants)
+      .values({
+        ...insertPlant,
+        lastWatered: null,
+        lastFertilized: null,
+        notes: insertPlant.notes || null,
+      })
+      .returning();
     return plant;
   }
 
   async updatePlant(id: number, update: Partial<Plant>): Promise<Plant | undefined> {
-    const existing = this.plants.get(id);
-    if (!existing) return undefined;
-
-    const updated = { ...existing, ...update };
-    this.plants.set(id, updated);
+    const [updated] = await db
+      .update(plants)
+      .set(update)
+      .where(eq(plants.id, id))
+      .returning();
     return updated;
   }
 
   async deletePlant(id: number): Promise<boolean> {
-    return this.plants.delete(id);
+    const [deleted] = await db
+      .delete(plants)
+      .where(eq(plants.id, id))
+      .returning();
+    return !!deleted;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
