@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import AddPlant from "@/pages/add-plant";
 import PlantDetail from "@/pages/plant-detail";
+import IdentifyPlant from "@/pages/identify";
 import MobileNav from "@/components/mobile-nav";
 
 function Router() {
@@ -13,6 +14,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/add" component={AddPlant} />
+      <Route path="/identify" component={IdentifyPlant} />
       <Route path="/plant/:id" component={PlantDetail} />
       <Route component={NotFound} />
     </Switch>

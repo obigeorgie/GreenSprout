@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, PlusCircle } from "lucide-react";
+import { Home, PlusCircle, Camera } from "lucide-react";
 
 export default function MobileNav() {
   const [location] = useLocation();
@@ -11,6 +11,12 @@ export default function MobileNav() {
           <a className={`flex flex-col items-center p-2 ${location === "/" ? "text-primary" : "text-muted-foreground"}`}>
             <Home className="h-6 w-6" />
             <span className="text-xs">Home</span>
+          </a>
+        </Link>
+        <Link href="/identify">
+          <a className={`flex flex-col items-center p-2 ${location === "/identify" ? "text-primary" : "text-muted-foreground"}`}>
+            <Camera className="h-6 w-6" />
+            <span className="text-xs">Identify</span>
           </a>
         </Link>
         <Link href="/add">
