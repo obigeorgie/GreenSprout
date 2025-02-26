@@ -10,6 +10,7 @@ import IdentifyPlant from "@/pages/identify";
 import Marketplace from "@/pages/marketplace";
 import Chat from "@/pages/chat";
 import MobileNav from "@/components/mobile-nav";
+import RescueMissions from "@/pages/rescue-missions";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/plant/:id" component={PlantDetail} />
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/chat" component={Chat} />
+      <Route path="/rescue-missions" component={RescueMissions} />
       <Route component={NotFound} />
     </Switch>
   );

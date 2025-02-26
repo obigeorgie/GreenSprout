@@ -61,8 +61,8 @@ export const plantsRelations = relations(plants, ({ one, many }) => ({
   timeline: many(growthTimeline),
   recommendedProducts: many(ecoProducts),
   swapListings: many(swapListings),
-  soundtracks: many(plantSoundtracks), // Add this line
-  predictions: many(growthPredictions), // Add this line
+  soundtracks: many(plantSoundtracks),
+  predictions: many(growthPredictions),
 }));
 
 export const plantSpeciesRelations = relations(plantSpecies, ({ many }) => ({
@@ -267,3 +267,52 @@ export const insertGrowthPredictionSchema = createInsertSchema(growthPredictions
 
 export type GrowthPrediction = typeof growthPredictions.$inferSelect;
 export type InsertGrowthPrediction = z.infer<typeof insertGrowthPredictionSchema>;
+
+// Add rescue mission types and schemas
+export const rescueMissions = pgTable("rescue_missions", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  location: text("location").notNull(),
+  urgency: text("urgency").notNull(), // "low", "medium", "high"
+  plantType: text("plant_type").notNull(),
+  image: text("image"),
+  status: text("status").default("active").notNull(), // "active", "in_progress", "completed"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  volunteerCount: integer("volunteer_count").default(0).notNull(),
+});
+
+// Add rescue response tracking
+export const rescueResponses = pgTable("rescue_responses", {
+  id: serial("id").primaryKey(),
+  missionId: integer("mission_id").references(() => rescueMissions.id).notNull(),
+  comment: text("comment").notNull(),
+  status: text("status").notNull(), // "volunteered", "completed"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Add schema validation
+export const insertRescueMissionSchema = createInsertSchema(rescueMissions)
+  .omit({ id: true, createdAt: true, updatedAt: true, volunteerCount: true })
+  .extend({
+    title: z.string().min(1, "Title is required"),
+    description: z.string().min(1, "Description is required"),
+    location: z.string().min(1, "Location is required"),
+    urgency: z.enum(["low", "medium", "high"]),
+    plantType: z.string().min(1, "Plant type is required"),
+    image: z.string().optional(),
+  });
+
+export const insertRescueResponseSchema = createInsertSchema(rescueResponses)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    comment: z.string().min(1, "Comment is required"),
+    status: z.enum(["volunteered", "completed"]),
+  });
+
+// Add types
+export type RescueMission = typeof rescueMissions.$inferSelect;
+export type InsertRescueMission = z.infer<typeof insertRescueMissionSchema>;
+export type RescueResponse = typeof rescueResponses.$inferSelect;
+export type InsertRescueResponse = z.infer<typeof insertRescueResponseSchema>;

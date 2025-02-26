@@ -5,7 +5,8 @@ import { ecoProducts, type EcoProduct } from "@shared/schema";
 import { swapListings, type SwapListing, type InsertSwapListing } from "@shared/schema";
 import { chatMessages, type ChatMessage, type InsertChatMessage } from "@shared/schema";
 import { growthPredictions, type GrowthPrediction, type InsertGrowthPrediction } from "@shared/schema"; // Import the new schema
-
+import { rescueMissions, type RescueMission, type InsertRescueMission } from "@shared/schema";
+import { rescueResponses, type RescueResponse, type InsertRescueResponse } from "@shared/schema";
 
 export interface IStorage {
   getPlants(): Promise<Plant[]>;
@@ -34,6 +35,13 @@ export interface IStorage {
   // Growth prediction methods
   getGrowthPredictions(plantId: number): Promise<GrowthPrediction[]>;
   createGrowthPrediction(prediction: InsertGrowthPrediction): Promise<GrowthPrediction>;
+  // Rescue mission methods
+  getRescueMissions(): Promise<RescueMission[]>;
+  getRescueMission(id: number): Promise<RescueMission | undefined>;
+  createRescueMission(mission: InsertRescueMission): Promise<RescueMission>;
+  updateRescueMission(id: number, update: Partial<RescueMission>): Promise<RescueMission | undefined>;
+  getRescueResponses(missionId: number): Promise<RescueResponse[]>;
+  createRescueResponse(response: InsertRescueResponse): Promise<RescueResponse>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -267,6 +275,74 @@ export class DatabaseStorage implements IStorage {
       .returning();
     console.log("Created prediction:", newPrediction);
     return newPrediction;
+  }
+
+  async getRescueMissions(): Promise<RescueMission[]> {
+    console.log("Fetching all rescue missions");
+    const missions = await db
+      .select()
+      .from(rescueMissions)
+      .orderBy(desc(rescueMissions.createdAt));
+    console.log("Fetched rescue missions:", missions);
+    return missions;
+  }
+
+  async getRescueMission(id: number): Promise<RescueMission | undefined> {
+    console.log(`Fetching rescue mission with id: ${id}`);
+    const [mission] = await db
+      .select()
+      .from(rescueMissions)
+      .where(eq(rescueMissions.id, id));
+    console.log("Fetched rescue mission:", mission);
+    return mission;
+  }
+
+  async createRescueMission(mission: InsertRescueMission): Promise<RescueMission> {
+    console.log("Creating rescue mission:", mission);
+    const [newMission] = await db
+      .insert(rescueMissions)
+      .values(mission)
+      .returning();
+    console.log("Created rescue mission:", newMission);
+    return newMission;
+  }
+
+  async updateRescueMission(
+    id: number,
+    update: Partial<RescueMission>
+  ): Promise<RescueMission | undefined> {
+    console.log(`Updating rescue mission ${id} with:`, update);
+    const [updated] = await db
+      .update(rescueMissions)
+      .set({
+        ...update,
+        updatedAt: new Date(),
+      })
+      .where(eq(rescueMissions.id, id))
+      .returning();
+    console.log("Updated rescue mission:", updated);
+    return updated;
+  }
+
+  async getRescueResponses(missionId: number): Promise<RescueResponse[]> {
+    console.log(`Fetching responses for rescue mission ${missionId}`);
+    const responses = await db
+      .select()
+      .from(rescueResponses)
+      .where(eq(rescueResponses.missionId, missionId))
+      .orderBy(desc(rescueResponses.createdAt));
+    console.log("Fetched rescue responses:", responses);
+    return responses;
+  }
+
+  async createRescueResponse(response: InsertRescueResponse): Promise<RescueResponse> {
+    console.log("Creating rescue response:", response);
+    const [newResponse] = await db
+      .insert(rescueResponses)
+      .values(response)
+      .returning();
+    console.log("Created rescue response:", newResponse);
+    return newResponse;
   }
 }
 

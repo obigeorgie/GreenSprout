@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
-import { insertPlantSchema, insertGrowthTimelineSchema, insertSwapListingSchema, insertChatMessageSchema } from "@shared/schema";
+import { insertPlantSchema, insertGrowthTimelineSchema, insertSwapListingSchema, insertChatMessageSchema, insertRescueMissionSchema, insertRescueResponseSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { spawn } from "child_process";
 import path from "path";
@@ -10,7 +10,6 @@ import { generatePlantCareResponse, handleAssistantAction } from "./chat";
 import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 
 let gradioProcess: any = null;
 
@@ -318,6 +317,84 @@ export async function registerRoutes(app: Express) {
       }
       console.error("Error processing chat message:", err);
       res.status(500).json({ message: "Failed to process message" });
+    }
+  });
+
+  // Add rescue mission routes
+  app.get("/api/rescue-missions", async (_req, res) => {
+    try {
+      const missions = await storage.getRescueMissions();
+      res.json(missions);
+    } catch (error) {
+      console.error("Error fetching rescue missions:", error);
+      res.status(500).json({ message: "Failed to fetch rescue missions" });
+    }
+  });
+
+  app.get("/api/rescue-missions/:id", async (req, res) => {
+    try {
+      const mission = await storage.getRescueMission(Number(req.params.id));
+      if (!mission) {
+        return res.status(404).json({ message: "Rescue mission not found" });
+      }
+      res.json(mission);
+    } catch (error) {
+      console.error("Error fetching rescue mission:", error);
+      res.status(500).json({ message: "Failed to fetch rescue mission" });
+    }
+  });
+
+  app.post("/api/rescue-missions", async (req, res) => {
+    try {
+      const missionData = insertRescueMissionSchema.parse(req.body);
+      const mission = await storage.createRescueMission(missionData);
+      res.status(201).json(mission);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("Error creating rescue mission:", err);
+      res.status(500).json({ message: "Failed to create rescue mission" });
+    }
+  });
+
+  app.patch("/api/rescue-missions/:id", async (req, res) => {
+    try {
+      const mission = await storage.updateRescueMission(Number(req.params.id), req.body);
+      if (!mission) {
+        return res.status(404).json({ message: "Rescue mission not found" });
+      }
+      res.json(mission);
+    } catch (error) {
+      console.error("Error updating rescue mission:", error);
+      res.status(500).json({ message: "Failed to update rescue mission" });
+    }
+  });
+
+  app.get("/api/rescue-missions/:id/responses", async (req, res) => {
+    try {
+      const responses = await storage.getRescueResponses(Number(req.params.id));
+      res.json(responses);
+    } catch (error) {
+      console.error("Error fetching rescue responses:", error);
+      res.status(500).json({ message: "Failed to fetch rescue responses" });
+    }
+  });
+
+  app.post("/api/rescue-missions/:id/responses", async (req, res) => {
+    try {
+      const responseData = insertRescueResponseSchema.parse({
+        ...req.body,
+        missionId: Number(req.params.id),
+      });
+      const response = await storage.createRescueResponse(responseData);
+      res.status(201).json(response);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("Error creating rescue response:", err);
+      res.status(500).json({ message: "Failed to create rescue response" });
     }
   });
 
