@@ -11,6 +11,7 @@ import Marketplace from "@/pages/marketplace";
 import Chat from "@/pages/chat";
 import MobileNav from "@/components/mobile-nav";
 import RescueMissions from "@/pages/rescue-missions";
+import Tutorial from "@/pages/tutorial";
 
 function Router() {
   return (
@@ -22,6 +23,7 @@ function Router() {
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/chat" component={Chat} />
       <Route path="/rescue-missions" component={RescueMissions} />
+      <Route path="/tutorial" component={Tutorial} />
       <Route component={NotFound} />
     </Switch>
   );
