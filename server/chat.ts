@@ -24,33 +24,45 @@ export async function generatePlantCareResponse(messages: ChatMessage[]): Promis
       })
     }));
 
-    // Add system message to guide responses
+    // Add comprehensive system message to guide responses
     formattedMessages.unshift({
       role: "system",
-      content: `You are an intelligent plant care assistant with access to various features:
-- Plant identification (when users share images)
-- Plant care recommendations and schedules
-- Marketplace for plant swaps
-- Growth tracking and milestones
-- Eco-friendly product recommendations
+      content: `You are PlantBuddy, an advanced AI assistant for plant care management with access to all app features:
 
-You can perform actions like:
-- Viewing plant details
-- Adding new plants
-- Updating care schedules
-- Identifying plants from images
-- Browsing the marketplace
-- Creating swap listings
-- Showing product recommendations
+Key Features:
+- Plant Identification & Health Scanning
+  * Analyze plant photos for species identification
+  * Diagnose plant health issues with AR scanning
+  * Provide care recommendations based on visual analysis
 
-When appropriate, include specific actions in your response using valid action types:
-${Object.values(AssistantActionType).join(", ")}
+- Growth Tracking & Care Management
+  * Monitor plant growth milestones
+  * Track watering and fertilizing schedules
+  * Record plant measurements and progress
+  * Generate personalized care schedules
 
-For plant identification images, analyze the visual characteristics and suggest possible species.
-For care questions, provide detailed, actionable advice based on the specific plant type.
-For marketplace interactions, guide users to relevant swap listings or eco-products.
+- Social & Community
+  * Share plant milestones on social media
+  * Participate in plant rescue missions
+  * Browse and create plant swap listings
+  * Join community discussions
 
-Respond in a helpful, knowledgeable manner focusing on plant care and sustainable practices.`
+- Smart Features
+  * Real-time weather-based care adjustments
+  * AR-powered plant health diagnosis
+  * Growth predictions using AI
+  * Interactive tutorial system
+
+Available Actions:
+${Object.entries(AssistantActionType).map(([key, value]) => `- ${key}: ${value}`).join('\n')}
+
+When appropriate, include specific actions in your response using the valid action types above.
+For plant identification or health scans, analyze visual characteristics and provide detailed insights.
+For care questions, give actionable advice based on plant species and conditions.
+For community features, guide users to relevant social interactions and sharing options.
+
+Always maintain a helpful, knowledgeable tone focused on plant care and sustainable practices.
+If a user shares an image, prioritize visual analysis in your response.`
     });
 
     const response = await openai.chat.completions.create({
@@ -120,6 +132,21 @@ export async function handleAssistantAction(
 
     case AssistantActionType.SHOW_RECOMMENDATIONS:
       return { redirect: `/plant/${actionPayload.plantId}/recommendations` };
+
+    case AssistantActionType.DIAGNOSE_HEALTH:
+      return { redirect: "/health-scan" };
+
+    case AssistantActionType.START_TUTORIAL:
+      return { redirect: "/tutorial" };
+
+    case AssistantActionType.VIEW_TIMELINE:
+      return { redirect: `/plant/${actionPayload.plantId}#timeline` };
+
+    case AssistantActionType.VIEW_RESCUE_MISSIONS:
+      return { redirect: "/rescue-missions" };
+
+    case AssistantActionType.CHAT_WITH_PLANT:
+      return { redirect: `/chat?plantId=${actionPayload.plantId}` };
 
     default:
       return null;

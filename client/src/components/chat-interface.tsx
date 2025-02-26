@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { type ChatMessage } from "@shared/schema";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Bot, User, Image, Camera } from "lucide-react";
+import { Send, Bot, User, Camera } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -17,11 +17,19 @@ export default function ChatInterface() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Fetch chat history
   const { data: messages = [], isLoading } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chat-messages"],
   });
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   // Handle image selection
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,6 +64,14 @@ export default function ChatInterface() {
           response.assistantMessage.actionPayload
         );
       }
+
+      // Show toast for successful actions
+      if (response.assistantMessage.actionType) {
+        toast({
+          title: "Action Taken",
+          description: "I've helped you with that request!",
+        });
+      }
     },
     onError: () => {
       toast({
@@ -76,6 +92,11 @@ export default function ChatInterface() {
       case "identify_plant":
       case "view_marketplace":
       case "create_swap":
+      case "diagnose_health":
+      case "start_tutorial":
+      case "view_timeline":
+      case "view_rescue_missions":
+      case "chat_with_plant":
         if (actionPayload.redirect) {
           navigate(actionPayload.redirect as string);
         }
@@ -102,7 +123,7 @@ export default function ChatInterface() {
 
   return (
     <Card className="flex flex-col h-[500px]">
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4">
           {messages.map((msg) => (
             <div
@@ -125,7 +146,7 @@ export default function ChatInterface() {
                     <User className="h-4 w-4" />
                   )}
                   <span className="text-xs font-medium">
-                    {msg.role === "assistant" ? "Plant Care Assistant" : "You"}
+                    {msg.role === "assistant" ? "PlantBuddy" : "You"}
                   </span>
                 </div>
                 {msg.imageUrl && (
@@ -162,7 +183,7 @@ export default function ChatInterface() {
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask about plant care..."
+            placeholder="Ask PlantBuddy anything about your plants..."
             disabled={sendMessage.isPending}
           />
           <Button

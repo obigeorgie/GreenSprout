@@ -203,6 +203,13 @@ export const AssistantActionType = {
   VIEW_MARKETPLACE: "view_marketplace",
   CREATE_SWAP: "create_swap",
   SHOW_RECOMMENDATIONS: "show_recommendations",
+  DIAGNOSE_HEALTH: "diagnose_health",
+  START_TUTORIAL: "start_tutorial",
+  VIEW_TIMELINE: "view_timeline",
+  SHARE_MILESTONE: "share_milestone",
+  VIEW_RESCUE_MISSIONS: "view_rescue_missions",
+  ANALYZE_WEATHER: "analyze_weather",
+  CHAT_WITH_PLANT: "chat_with_plant",
 } as const;
 
 // Add to the existing chatMessages table definition
