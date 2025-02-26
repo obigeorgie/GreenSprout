@@ -12,6 +12,7 @@ import Chat from "@/pages/chat";
 import MobileNav from "@/components/mobile-nav";
 import RescueMissions from "@/pages/rescue-missions";
 import Tutorial from "@/pages/tutorial";
+import HealthScan from "@/pages/health-scan";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/chat" component={Chat} />
       <Route path="/rescue-missions" component={RescueMissions} />
       <Route path="/tutorial" component={Tutorial} />
+      <Route path="/health-scan" component={HealthScan} />
       <Route component={NotFound} />
     </Switch>
   );

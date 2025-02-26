@@ -320,6 +320,44 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Add plant health diagnosis route
+  app.post("/api/diagnose-plant", async (req, res) => {
+    try {
+      const { image } = req.body;
+
+      // Generate health analysis using OpenAI
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are a plant health expert. Analyze the plant image and identify any health issues, providing recommendations. Return your analysis in JSON format with the following structure: { issues: [{ issue: string, confidence: number, recommendations: string[] }] }"
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Analyze this plant's health condition and identify any issues:"
+              },
+              {
+                type: "image_url",
+                image_url: { url: image }
+              }
+            ]
+          }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      res.json(result);
+    } catch (error) {
+      console.error("Plant diagnosis error:", error);
+      res.status(500).json({ message: "Failed to analyze plant health" });
+    }
+  });
+
   // Add rescue mission routes
   app.get("/api/rescue-missions", async (_req, res) => {
     try {
