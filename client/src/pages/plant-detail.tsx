@@ -122,7 +122,7 @@ export default function PlantDetail() {
 
         <section>
           <h2 className="text-xl font-semibold mb-4">Growth Timeline</h2>
-          <GrowthTimeline plantId={plant.id} />
+          <GrowthTimeline plantId={plant.id} plantName={plant.name} />
         </section>
 
         <section>

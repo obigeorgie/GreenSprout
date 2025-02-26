@@ -20,9 +20,11 @@ import { Form } from "@/components/ui/form";
 import { insertGrowthTimelineSchema } from "@shared/schema";
 import ARCamera from "@/components/ar-camera";
 import { Camera } from "lucide-react";
+import ShareMilestone from "@/components/share-milestone";
 
 interface GrowthTimelineProps {
   plantId: number;
+  plantName: string; // Add this prop for sharing
 }
 
 const milestoneTypes = [
@@ -33,7 +35,7 @@ const milestoneTypes = [
   { value: "other", label: "Other", emoji: "✨" },
 ];
 
-export default function GrowthTimeline({ plantId }: GrowthTimelineProps) {
+export default function GrowthTimeline({ plantId, plantName }: GrowthTimelineProps) {
   const { toast } = useToast();
   const [showCamera, setShowCamera] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export default function GrowthTimeline({ plantId }: GrowthTimelineProps) {
     addEntry.mutate({
       ...data,
       celebrationEmoji: data.milestone
-        ? milestoneTypes.find(t => t.value === data.milestoneType)?.emoji
+        ? milestoneTypes.find((t) => t.value === data.milestoneType)?.emoji
         : undefined,
     });
   };
@@ -215,7 +217,7 @@ export default function GrowthTimeline({ plantId }: GrowthTimelineProps) {
                   <span className="text-sm text-muted-foreground">
                     {format(new Date(entry.entryDate), "MMM d, yyyy")}
                   </span>
-                  {entry.milestone && (
+                  {entry.milestone && entry.celebrationEmoji && (
                     <span className="text-lg">{entry.celebrationEmoji}</span>
                   )}
                 </div>
@@ -226,6 +228,9 @@ export default function GrowthTimeline({ plantId }: GrowthTimelineProps) {
                   </p>
                 )}
               </div>
+              {entry.milestone && (
+                <ShareMilestone milestone={entry} plantName={plantName} />
+              )}
             </div>
             {entry.image && (
               <img
