@@ -9,29 +9,25 @@ import { fileURLToPath } from "url";
 import { generatePlantCareResponse, handleAssistantAction } from "./chat";
 import OpenAI from "openai";
 import * as z from 'zod';
+import csrf from 'csurf';
+import cookieParser from 'cookie-parser';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-let gradioProcess: any = null;
-
-function startGradioServer() {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const scriptPath = path.join(__dirname, "plant_classifier.py");
-  gradioProcess = spawn("python", [scriptPath]);
-
-  gradioProcess.stdout.on('data', (data: Buffer) => {
-    console.log('Gradio output:', data.toString());
-  });
-
-  gradioProcess.stderr.on('data', (data: Buffer) => {
-    console.error('Gradio error:', data.toString());
-  });
-}
+// Initialize CSRF protection
+const csrfProtection = csrf({ cookie: true });
 
 export async function registerRoutes(app: Express) {
-  // Start Gradio server
-  startGradioServer();
+  // Add cookie parser middleware
+  app.use(cookieParser());
+
+  // Add CSRF protection to all routes
+  app.use(csrfProtection);
+
+  // Provide CSRF token to the frontend
+  app.get('/api/csrf-token', (req, res) => {
+    res.json({ csrfToken: req.csrfToken() });
+  });
 
   // Existing plant routes
   app.get("/api/plants", async (_req, res) => {
@@ -47,7 +43,7 @@ export async function registerRoutes(app: Express) {
     res.json(plant);
   });
 
-  app.post("/api/plants", async (req, res) => {
+  app.post("/api/plants", csrfProtection, async (req, res) => {
     try {
       const plantData = insertPlantSchema.parse(req.body);
       const plant = await storage.createPlant(plantData);
@@ -60,7 +56,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/plants/:id", async (req, res) => {
+  app.patch("/api/plants/:id", csrfProtection, async (req, res) => {
     const id = Number(req.params.id);
     const plant = await storage.updatePlant(id, req.body);
     if (!plant) {
@@ -69,7 +65,7 @@ export async function registerRoutes(app: Express) {
     res.json(plant);
   });
 
-  app.delete("/api/plants/:id", async (req, res) => {
+  app.delete("/api/plants/:id", csrfProtection, async (req, res) => {
     const success = await storage.deletePlant(Number(req.params.id));
     if (!success) {
       return res.status(404).json({ message: "Plant not found" });
@@ -98,7 +94,7 @@ export async function registerRoutes(app: Express) {
     res.json(timeline);
   });
 
-  app.post("/api/plants/:id/timeline", async (req, res) => {
+  app.post("/api/plants/:id/timeline", csrfProtection, async (req, res) => {
     try {
       const plantId = Number(req.params.id);
       const entryData = insertGrowthTimelineSchema.parse({
@@ -116,7 +112,7 @@ export async function registerRoutes(app: Express) {
   });
 
   // Plant identification route
-  app.post("/api/identify-plant", async (req, res) => {
+  app.post("/api/identify-plant", csrfProtection, async (req, res) => {
     try {
       const { image } = req.body;
 
@@ -146,7 +142,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.post("/api/plants/:id/generate-prediction", async (req, res) => {
+  app.post("/api/plants/:id/generate-prediction", csrfProtection, async (req, res) => {
     try {
       const plantId = Number(req.params.id);
       const plant = await storage.getPlant(plantId);
@@ -237,7 +233,7 @@ export async function registerRoutes(app: Express) {
     res.json(listing);
   });
 
-  app.post("/api/swap-listings", async (req, res) => {
+  app.post("/api/swap-listings", csrfProtection, async (req, res) => {
     try {
       const listingData = insertSwapListingSchema.parse(req.body);
       const listing = await storage.createSwapListing(listingData);
@@ -250,7 +246,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/swap-listings/:id", async (req, res) => {
+  app.patch("/api/swap-listings/:id", csrfProtection, async (req, res) => {
     const listing = await storage.updateSwapListing(Number(req.params.id), req.body);
     if (!listing) {
       return res.status(404).json({ message: "Swap listing not found" });
@@ -258,7 +254,7 @@ export async function registerRoutes(app: Express) {
     res.json(listing);
   });
 
-  app.delete("/api/swap-listings/:id", async (req, res) => {
+  app.delete("/api/swap-listings/:id", csrfProtection, async (req, res) => {
     const success = await storage.deleteSwapListing(Number(req.params.id));
     if (!success) {
       return res.status(404).json({ message: "Swap listing not found" });
@@ -277,7 +273,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.post("/api/chat-messages", async (req, res) => {
+  app.post("/api/chat-messages", csrfProtection, async (req, res) => {
     try {
       // Validate and store user message
       const userMessage = insertChatMessageSchema.parse(req.body);
@@ -328,7 +324,7 @@ export async function registerRoutes(app: Express) {
   });
 
   // Update the plant health diagnosis route with validation
-  app.post("/api/diagnose-plant", async (req, res) => {
+  app.post("/api/diagnose-plant", csrfProtection, async (req, res) => {
     try {
       const { image } = plantDiagnosisSchema.parse(req.body);
 
@@ -399,7 +395,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.post("/api/rescue-missions", async (req, res) => {
+  app.post("/api/rescue-missions", csrfProtection, async (req, res) => {
     try {
       const missionData = insertRescueMissionSchema.parse(req.body);
       const mission = await storage.createRescueMission(missionData);
@@ -413,7 +409,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/rescue-missions/:id", async (req, res) => {
+  app.patch("/api/rescue-missions/:id", csrfProtection, async (req, res) => {
     try {
       const mission = await storage.updateRescueMission(Number(req.params.id), req.body);
       if (!mission) {
@@ -436,7 +432,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.post("/api/rescue-missions/:id/responses", async (req, res) => {
+  app.post("/api/rescue-missions/:id/responses", csrfProtection, async (req, res) => {
     try {
       const responseData = insertRescueResponseSchema.parse({
         ...req.body,
@@ -462,4 +458,20 @@ export async function registerRoutes(app: Express) {
   });
 
   return server;
+}
+let gradioProcess: any = null;
+
+function startGradioServer() {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const scriptPath = path.join(__dirname, "plant_classifier.py");
+  gradioProcess = spawn("python", [scriptPath]);
+
+  gradioProcess.stdout.on('data', (data: Buffer) => {
+    console.log('Gradio output:', data.toString());
+  });
+
+  gradioProcess.stderr.on('data', (data: Buffer) => {
+    console.error('Gradio error:', data.toString());
+  });
 }
