@@ -20,8 +20,14 @@ declare module 'express' {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Initialize CSRF protection
-const csrfProtection = csrf({ cookie: true });
+// Initialize CSRF protection with secure defaults
+const csrfProtection = csrf({ 
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  } 
+});
 
 // Add input validation schemas
 const imageSchema = z.object({
