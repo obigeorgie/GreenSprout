@@ -17,6 +17,10 @@ import rateLimit from 'express-rate-limit';
   }
 
   const app = express();
+
+  // Configure Express to trust proxy headers since we're behind Replit's proxy
+  app.set('trust proxy', 1);
+
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
 
