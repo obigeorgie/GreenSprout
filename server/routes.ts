@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
 import { insertPlantSchema, insertGrowthTimelineSchema, insertSwapListingSchema, insertChatMessageSchema, insertRescueMissionSchema, insertRescueResponseSchema } from "@shared/schema";
@@ -11,6 +11,12 @@ import OpenAI from "openai";
 import * as z from 'zod';
 import csrf from 'csurf';
 import cookieParser from 'cookie-parser';
+
+declare module 'express' {
+  interface Request {
+    csrfToken(): string;
+  }
+}
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -35,8 +41,14 @@ const dateSchema = z.string().refine(
   "Invalid date format"
 );
 
+interface ValidationError {
+  status: number;
+  code: string;
+  message: string;
+}
+
 // Validate request with schema and handle errors consistently
-const validateRequest = async (schema: z.ZodSchema, data: unknown) => {
+const validateRequest = async <T>(schema: z.ZodSchema<T>, data: unknown): Promise<T> => {
   try {
     return await schema.parseAsync(data);
   } catch (error) {
@@ -45,7 +57,7 @@ const validateRequest = async (schema: z.ZodSchema, data: unknown) => {
         status: 400,
         code: 'VALIDATION_ERROR',
         message: error.errors[0].message
-      };
+      } as ValidationError;
     }
     throw error;
   }

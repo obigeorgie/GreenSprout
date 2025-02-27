@@ -14,28 +14,21 @@ export interface IStorage {
   createPlant(plant: InsertPlant): Promise<Plant>;
   updatePlant(id: number, plant: Partial<Plant>): Promise<Plant | undefined>;
   deletePlant(id: number): Promise<boolean>;
-  getPlantSpecies(): Promise<PlantSpecies[]>;
-  getPlantSpecies(id: number): Promise<PlantSpecies | undefined>;
-  // New timeline methods
+  getPlantSpecies(id?: number): Promise<PlantSpecies[] | PlantSpecies | undefined>;
   getGrowthTimeline(plantId: number): Promise<GrowthTimeline[]>;
   addGrowthTimelineEntry(entry: InsertGrowthTimeline): Promise<GrowthTimeline>;
-  // Eco-friendly product methods
   getEcoProducts(): Promise<EcoProduct[]>;
   getEcoProductsByCategory(category: string): Promise<EcoProduct[]>;
   getRecommendedProducts(plant: Plant): Promise<EcoProduct[]>;
-  // Swap listing methods
   getSwapListings(): Promise<SwapListing[]>;
   getSwapListing(id: number): Promise<SwapListing | undefined>;
   createSwapListing(listing: InsertSwapListing): Promise<SwapListing>;
   updateSwapListing(id: number, listing: Partial<SwapListing>): Promise<SwapListing | undefined>;
   deleteSwapListing(id: number): Promise<boolean>;
-  // Chat message methods
   getChatMessages(): Promise<ChatMessage[]>;
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
-  // Growth prediction methods
   getGrowthPredictions(plantId: number): Promise<GrowthPrediction[]>;
   createGrowthPrediction(prediction: InsertGrowthPrediction): Promise<GrowthPrediction>;
-  // Rescue mission methods
   getRescueMissions(): Promise<RescueMission[]>;
   getRescueMission(id: number): Promise<RescueMission | undefined>;
   createRescueMission(mission: InsertRescueMission): Promise<RescueMission>;
@@ -104,17 +97,13 @@ export class DatabaseStorage implements IStorage {
   async deletePlant(id: number): Promise<boolean> {
     try {
       console.log(`Deleting plant with id: ${id}`);
-      // Start a transaction to handle related records
       const success = await db.transaction(async (tx) => {
-        // Delete related timeline entries first
         await tx.delete(growthTimeline)
           .where(eq(growthTimeline.plantId, id));
 
-        // Delete related predictions
         await tx.delete(growthPredictions)
           .where(eq(growthPredictions.plantId, id));
 
-        // Finally delete the plant
         const [deleted] = await tx.delete(plants)
           .where(eq(plants.id, id))
           .returning();
@@ -130,18 +119,17 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getPlantSpecies(): Promise<PlantSpecies[]> {
-    console.log("Fetching all plant species");
-    const result = await db.select().from(plantSpecies);
-    console.log("Fetched plant species:", result);
-    return result;
-  }
-
-  async getPlantSpecies(id: number): Promise<PlantSpecies | undefined> {
-    console.log(`Fetching plant species with id: ${id}`);
-    const [species] = await db.select().from(plantSpecies).where(eq(plantSpecies.id, id));
-    console.log("Fetched plant species:", species);
-    return species;
+  async getPlantSpecies(id?: number): Promise<PlantSpecies[] | PlantSpecies | undefined> {
+    console.log(id ? `Fetching plant species with id: ${id}` : "Fetching all plant species");
+    if (id) {
+      const [species] = await db.select().from(plantSpecies).where(eq(plantSpecies.id, id));
+      console.log("Fetched plant species:", species);
+      return species;
+    } else {
+      const result = await db.select().from(plantSpecies);
+      console.log("Fetched plant species:", result);
+      return result;
+    }
   }
 
   async getGrowthTimeline(plantId: number): Promise<GrowthTimeline[]> {
@@ -158,18 +146,17 @@ export class DatabaseStorage implements IStorage {
   async addGrowthTimelineEntry(entry: InsertGrowthTimeline): Promise<GrowthTimeline> {
     try {
       console.log("Adding growth timeline entry:", entry);
-      // Ensure the plant exists before adding timeline entry
       const plant = await this.getPlant(entry.plantId);
       if (!plant) {
         throw new Error(`Plant ${entry.plantId} not found`);
       }
 
+      const timestamp = new Date().toISOString();
       const [timelineEntry] = await db
         .insert(growthTimeline)
         .values({
           ...entry,
-          entryDate: new Date(entry.entryDate).toISOString(), // Normalize date format
-          createdAt: new Date().toISOString(),
+          createdAt: timestamp
         })
         .returning();
 
@@ -201,23 +188,19 @@ export class DatabaseStorage implements IStorage {
   async getRecommendedProducts(plant: Plant): Promise<EcoProduct[]> {
     console.log(`Getting product recommendations for plant: ${plant.name}`);
 
-    // Get products based on plant needs
     const recommendations = await db
       .select()
       .from(ecoProducts)
       .where(
         or(
-          // If plant needs frequent watering, recommend water-saving products
           and(
             eq(ecoProducts.category, "watering"),
             lt(plant.wateringFrequency, 7)
           ),
-          // If plant needs lots of fertilizer, recommend organic options
           and(
             eq(ecoProducts.category, "fertilizer"),
             lt(plant.fertilizerFrequency, 30)
           ),
-          // Always include eco-friendly soil options
           eq(ecoProducts.category, "soil")
         )
       );
