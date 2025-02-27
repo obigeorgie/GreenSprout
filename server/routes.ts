@@ -47,10 +47,9 @@ const dateSchema = z.string().refine(
   "Invalid date format"
 );
 
-interface ValidationError {
+interface ValidationError extends Error {
   status: number;
   code: string;
-  message: string;
 }
 
 // Validate request with schema and handle errors consistently
@@ -59,11 +58,10 @@ const validateRequest = async <T>(schema: z.ZodSchema<T>, data: unknown): Promis
     return await schema.parseAsync(data);
   } catch (error) {
     if (error instanceof ZodError) {
-      throw {
-        status: 400,
-        code: 'VALIDATION_ERROR',
-        message: error.errors[0].message
-      } as ValidationError;
+      const validationError = new Error(error.errors[0].message) as ValidationError;
+      validationError.status = 400;
+      validationError.code = 'VALIDATION_ERROR';
+      throw validationError;
     }
     throw error;
   }
@@ -662,6 +660,19 @@ export async function registerRoutes(app: Express) {
       console.error("Error creating rescue response:", err);
       res.status(500).json({ message: "Failed to create rescue response" });
     }
+  });
+
+  app.use((err: Error | ValidationError, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('Error:', err);
+    const status = 'status' in err ? err.status : 500;
+    const code = 'code' in err ? err.code : 'INTERNAL_ERROR';
+    const message = err.message || "Internal Server Error";
+
+    res.status(status).json({ 
+      error: message,
+      code,
+      ...(process.env.NODE_ENV === 'development' ? { stack: err.stack } : {})
+    });
   });
 
   const server = createServer(app);
