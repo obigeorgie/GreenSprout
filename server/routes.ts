@@ -8,6 +8,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { generatePlantCareResponse, handleAssistantAction } from "./chat";
 import OpenAI from "openai";
+import * as z from 'zod';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -321,9 +322,15 @@ export async function registerRoutes(app: Express) {
   });
 
   // Add plant health diagnosis route
+  // Add input validation schema
+  const plantDiagnosisSchema = z.object({
+    image: z.string().min(1, "Image data is required"),
+  });
+
+  // Update the plant health diagnosis route with validation
   app.post("/api/diagnose-plant", async (req, res) => {
     try {
-      const { image } = req.body;
+      const { image } = plantDiagnosisSchema.parse(req.body);
 
       // Generate health analysis using OpenAI
       const response = await openai.chat.completions.create({
@@ -353,8 +360,18 @@ export async function registerRoutes(app: Express) {
       const result = JSON.parse(response.choices[0].message.content || "{}");
       res.json(result);
     } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          error: "Validation Error",
+          details: error.errors[0].message
+        });
+      }
       console.error("Plant diagnosis error:", error);
-      res.status(500).json({ message: "Failed to analyze plant health" });
+      res.status(500).json({
+        error: "Internal Server Error",
+        code: "DIAGNOSIS_FAILED",
+        message: "Failed to analyze plant health"
+      });
     }
   });
 

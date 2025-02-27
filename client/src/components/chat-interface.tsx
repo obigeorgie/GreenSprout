@@ -46,11 +46,16 @@ export default function ChatInterface() {
   // Send message mutation
   const sendMessage = useMutation({
     mutationFn: async (content: string) => {
-      return apiRequest("POST", "/api/chat-messages", {
-        role: "user",
-        content,
-        imageUrl: selectedImage,
-      });
+      try {
+        const response = await apiRequest("POST", "/api/chat-messages", {
+          role: "user",
+          content,
+          imageUrl: selectedImage,
+        });
+        return response;
+      } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to send message");
+      }
     },
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["/api/chat-messages"] });
@@ -63,22 +68,22 @@ export default function ChatInterface() {
           response.assistantMessage.actionType,
           response.assistantMessage.actionPayload
         );
-      }
 
-      // Show toast for successful actions
-      if (response.assistantMessage.actionType) {
         toast({
           title: "Action Taken",
           description: "I've helped you with that request!",
         });
       }
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
-        description: "Failed to send message. Please try again.",
+        description: error.message || "Failed to send message. Please try again.",
         variant: "destructive",
       });
+
+      // Log error for debugging
+      console.error("Chat error:", error);
     },
   });
 
