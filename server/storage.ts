@@ -46,32 +46,48 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getPlants(): Promise<Plant[]> {
-    console.log("Fetching all plants");
-    const result = await db.select().from(plants);
-    console.log("Fetched plants:", result);
-    return result;
+    try {
+      console.log("Fetching all plants");
+      const result = await db.select().from(plants);
+      console.log("Fetched plants:", result);
+      return result;
+    } catch (error) {
+      console.error("Error fetching plants:", error);
+      throw new Error("Failed to fetch plants");
+    }
   }
 
   async getPlant(id: number): Promise<Plant | undefined> {
-    console.log(`Fetching plant with id: ${id}`);
-    const [plant] = await db.select().from(plants).where(eq(plants.id, id));
-    console.log("Fetched plant:", plant);
-    return plant;
+    try {
+      console.log(`Fetching plant with id: ${id}`);
+      const [plant] = await db.select().from(plants).where(eq(plants.id, id));
+      console.log("Fetched plant:", plant);
+      return plant;
+    } catch (error) {
+      console.error(`Error fetching plant ${id}:`, error);
+      throw new Error("Failed to fetch plant");
+    }
   }
 
   async createPlant(insertPlant: InsertPlant): Promise<Plant> {
-    console.log("Creating plant with data:", insertPlant);
-    const [plant] = await db
-      .insert(plants)
-      .values({
-        ...insertPlant,
-        lastWatered: null,
-        lastFertilized: null,
-        notes: insertPlant.notes || null,
-      })
-      .returning();
-    console.log("Created plant:", plant);
-    return plant;
+    try {
+      console.log("Creating plant with data:", insertPlant);
+      const [plant] = await db
+        .insert(plants)
+        .values({
+          ...insertPlant,
+          lastWatered: insertPlant.lastWatered || null,
+          lastFertilized: insertPlant.lastFertilized || null,
+          notes: insertPlant.notes || null,
+          createdAt: new Date().toISOString(), // Ensure consistent date format
+        })
+        .returning();
+      console.log("Created plant:", plant);
+      return plant;
+    } catch (error) {
+      console.error("Error creating plant:", error);
+      throw new Error("Failed to create plant");
+    }
   }
 
   async updatePlant(id: number, update: Partial<Plant>): Promise<Plant | undefined> {
@@ -86,13 +102,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePlant(id: number): Promise<boolean> {
-    console.log(`Deleting plant with id: ${id}`);
-    const [deleted] = await db
-      .delete(plants)
-      .where(eq(plants.id, id))
-      .returning();
-    console.log("Delete result:", !!deleted);
-    return !!deleted;
+    try {
+      console.log(`Deleting plant with id: ${id}`);
+      // Start a transaction to handle related records
+      const success = await db.transaction(async (tx) => {
+        // Delete related timeline entries first
+        await tx.delete(growthTimeline)
+          .where(eq(growthTimeline.plantId, id));
+
+        // Delete related predictions
+        await tx.delete(growthPredictions)
+          .where(eq(growthPredictions.plantId, id));
+
+        // Finally delete the plant
+        const [deleted] = await tx.delete(plants)
+          .where(eq(plants.id, id))
+          .returning();
+
+        return !!deleted;
+      });
+
+      console.log("Delete success:", success);
+      return success;
+    } catch (error) {
+      console.error(`Error deleting plant ${id}:`, error);
+      throw new Error("Failed to delete plant");
+    }
   }
 
   async getPlantSpecies(): Promise<PlantSpecies[]> {
@@ -121,13 +156,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addGrowthTimelineEntry(entry: InsertGrowthTimeline): Promise<GrowthTimeline> {
-    console.log("Adding growth timeline entry:", entry);
-    const [timelineEntry] = await db
-      .insert(growthTimeline)
-      .values(entry)
-      .returning();
-    console.log("Added timeline entry:", timelineEntry);
-    return timelineEntry;
+    try {
+      console.log("Adding growth timeline entry:", entry);
+      // Ensure the plant exists before adding timeline entry
+      const plant = await this.getPlant(entry.plantId);
+      if (!plant) {
+        throw new Error(`Plant ${entry.plantId} not found`);
+      }
+
+      const [timelineEntry] = await db
+        .insert(growthTimeline)
+        .values({
+          ...entry,
+          entryDate: new Date(entry.entryDate).toISOString(), // Normalize date format
+          createdAt: new Date().toISOString(),
+        })
+        .returning();
+
+      console.log("Added timeline entry:", timelineEntry);
+      return timelineEntry;
+    } catch (error) {
+      console.error("Error adding timeline entry:", error);
+      throw new Error("Failed to add timeline entry");
+    }
   }
 
   async getEcoProducts(): Promise<EcoProduct[]> {

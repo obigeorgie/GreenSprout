@@ -17,6 +17,40 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // Initialize CSRF protection
 const csrfProtection = csrf({ cookie: true });
 
+// Add input validation schemas
+const imageSchema = z.object({
+  data: z.string()
+    .min(1, "Image data is required")
+    .refine(
+      (val) => val.startsWith('data:image/'),
+      "Invalid image format. Must be a valid base64 image."
+    ),
+  type: z.enum(["image/jpeg", "image/png", "image/webp"], {
+    errorMap: () => ({ message: "Unsupported image type. Use JPEG, PNG, or WebP." })
+  })
+});
+
+const dateSchema = z.string().refine(
+  (val) => !isNaN(Date.parse(val)),
+  "Invalid date format"
+);
+
+// Validate request with schema and handle errors consistently
+const validateRequest = async (schema: z.ZodSchema, data: unknown) => {
+  try {
+    return await schema.parseAsync(data);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw {
+        status: 400,
+        code: 'VALIDATION_ERROR',
+        message: error.errors[0].message
+      };
+    }
+    throw error;
+  }
+};
+
 export async function registerRoutes(app: Express) {
   // Add cookie parser middleware
   app.use(cookieParser());
@@ -29,28 +63,42 @@ export async function registerRoutes(app: Express) {
     res.json({ csrfToken: req.csrfToken() });
   });
 
-  // Existing plant routes
+  // Existing plant routes with enhanced validation
   app.get("/api/plants", async (_req, res) => {
     const plants = await storage.getPlants();
     res.json(plants);
   });
 
   app.get("/api/plants/:id", async (req, res) => {
-    const plant = await storage.getPlant(Number(req.params.id));
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        error: "Invalid ID format",
+        code: "INVALID_ID"
+      });
+    }
+
+    const plant = await storage.getPlant(id);
     if (!plant) {
-      return res.status(404).json({ message: "Plant not found" });
+      return res.status(404).json({
+        error: "Plant not found",
+        code: "NOT_FOUND"
+      });
     }
     res.json(plant);
   });
 
   app.post("/api/plants", csrfProtection, async (req, res) => {
     try {
-      const plantData = insertPlantSchema.parse(req.body);
+      const plantData = await validateRequest(insertPlantSchema, req.body);
       const plant = await storage.createPlant(plantData);
       res.status(201).json(plant);
     } catch (err) {
-      if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+      if (err.status) {
+        return res.status(err.status).json({
+          error: err.message,
+          code: err.code
+        });
       }
       throw err;
     }
@@ -58,17 +106,36 @@ export async function registerRoutes(app: Express) {
 
   app.patch("/api/plants/:id", csrfProtection, async (req, res) => {
     const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        error: "Invalid ID format",
+        code: "INVALID_ID"
+      });
+    }
     const plant = await storage.updatePlant(id, req.body);
     if (!plant) {
-      return res.status(404).json({ message: "Plant not found" });
+      return res.status(404).json({
+        error: "Plant not found",
+        code: "NOT_FOUND"
+      });
     }
     res.json(plant);
   });
 
   app.delete("/api/plants/:id", csrfProtection, async (req, res) => {
-    const success = await storage.deletePlant(Number(req.params.id));
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        error: "Invalid ID format",
+        code: "INVALID_ID"
+      });
+    }
+    const success = await storage.deletePlant(id);
     if (!success) {
-      return res.status(404).json({ message: "Plant not found" });
+      return res.status(404).json({
+        error: "Plant not found",
+        code: "NOT_FOUND"
+      });
     }
     res.status(204).end();
   });
@@ -80,9 +147,19 @@ export async function registerRoutes(app: Express) {
   });
 
   app.get("/api/plant-species/:id", async (req, res) => {
-    const species = await storage.getPlantSpecies(Number(req.params.id));
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        error: "Invalid ID format",
+        code: "INVALID_ID"
+      });
+    }
+    const species = await storage.getPlantSpecies(id);
     if (!species) {
-      return res.status(404).json({ message: "Plant species not found" });
+      return res.status(404).json({
+        error: "Plant species not found",
+        code: "NOT_FOUND"
+      });
     }
     res.json(species);
   });
@@ -90,6 +167,12 @@ export async function registerRoutes(app: Express) {
   // Growth timeline routes
   app.get("/api/plants/:id/timeline", async (req, res) => {
     const plantId = Number(req.params.id);
+    if (isNaN(plantId)) {
+      return res.status(400).json({
+        error: "Invalid plant ID",
+        code: "INVALID_ID"
+      });
+    }
     const timeline = await storage.getGrowthTimeline(plantId);
     res.json(timeline);
   });
@@ -97,15 +180,28 @@ export async function registerRoutes(app: Express) {
   app.post("/api/plants/:id/timeline", csrfProtection, async (req, res) => {
     try {
       const plantId = Number(req.params.id);
-      const entryData = insertGrowthTimelineSchema.parse({
-        ...req.body,
-        plantId,
-      });
+      if (isNaN(plantId)) {
+        return res.status(400).json({
+          error: "Invalid plant ID",
+          code: "INVALID_ID"
+        });
+      }
+
+      const entryData = await validateRequest(
+        insertGrowthTimelineSchema.extend({
+          entryDate: dateSchema
+        }),
+        { ...req.body, plantId }
+      );
+
       const entry = await storage.addGrowthTimelineEntry(entryData);
       res.status(201).json(entry);
     } catch (err) {
-      if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+      if (err.status) {
+        return res.status(err.status).json({
+          error: err.message,
+          code: err.code
+        });
       }
       throw err;
     }
@@ -114,7 +210,7 @@ export async function registerRoutes(app: Express) {
   // Plant identification route
   app.post("/api/identify-plant", csrfProtection, async (req, res) => {
     try {
-      const { image } = req.body;
+      const { data: image } = await validateRequest(imageSchema, req.body);
 
       // Forward the request to Gradio server
       const gradioResponse = await fetch("http://localhost:7860/api/predict", {
@@ -126,6 +222,12 @@ export async function registerRoutes(app: Express) {
       const result = await gradioResponse.json();
       res.json(result);
     } catch (error) {
+      if (error.status === 400) {
+        return res.status(400).json({
+          error: error.message,
+          code: "VALIDATION_ERROR"
+        });
+      }
       console.error("Plant identification error:", error);
       res.status(500).json({ message: "Failed to identify plant" });
     }
@@ -134,7 +236,14 @@ export async function registerRoutes(app: Express) {
   // Growth prediction routes
   app.get("/api/plants/:id/growth-predictions", async (req, res) => {
     try {
-      const predictions = await storage.getGrowthPredictions(Number(req.params.id));
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({
+          error: "Invalid ID format",
+          code: "INVALID_ID"
+        });
+      }
+      const predictions = await storage.getGrowthPredictions(id);
       res.json(predictions);
     } catch (error) {
       console.error("Error fetching growth predictions:", error);
@@ -145,10 +254,19 @@ export async function registerRoutes(app: Express) {
   app.post("/api/plants/:id/generate-prediction", csrfProtection, async (req, res) => {
     try {
       const plantId = Number(req.params.id);
+      if (isNaN(plantId)) {
+        return res.status(400).json({
+          error: "Invalid plant ID",
+          code: "INVALID_ID"
+        });
+      }
       const plant = await storage.getPlant(plantId);
 
       if (!plant) {
-        return res.status(404).json({ message: "Plant not found" });
+        return res.status(404).json({
+          error: "Plant not found",
+          code: "NOT_FOUND"
+        });
       }
 
       // Get growth timeline entries for context
@@ -211,9 +329,19 @@ export async function registerRoutes(app: Express) {
   });
 
   app.get("/api/plants/:id/recommendations", async (req, res) => {
-    const plant = await storage.getPlant(Number(req.params.id));
+    const plantId = Number(req.params.id);
+    if (isNaN(plantId)) {
+      return res.status(400).json({
+        error: "Invalid plant ID",
+        code: "INVALID_ID"
+      });
+    }
+    const plant = await storage.getPlant(plantId);
     if (!plant) {
-      return res.status(404).json({ message: "Plant not found" });
+      return res.status(404).json({
+        error: "Plant not found",
+        code: "NOT_FOUND"
+      });
     }
     const recommendations = await storage.getRecommendedProducts(plant);
     res.json(recommendations);
@@ -226,38 +354,71 @@ export async function registerRoutes(app: Express) {
   });
 
   app.get("/api/swap-listings/:id", async (req, res) => {
-    const listing = await storage.getSwapListing(Number(req.params.id));
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        error: "Invalid ID format",
+        code: "INVALID_ID"
+      });
+    }
+    const listing = await storage.getSwapListing(id);
     if (!listing) {
-      return res.status(404).json({ message: "Swap listing not found" });
+      return res.status(404).json({
+        error: "Swap listing not found",
+        code: "NOT_FOUND"
+      });
     }
     res.json(listing);
   });
 
   app.post("/api/swap-listings", csrfProtection, async (req, res) => {
     try {
-      const listingData = insertSwapListingSchema.parse(req.body);
+      const listingData = await validateRequest(insertSwapListingSchema, req.body);
       const listing = await storage.createSwapListing(listingData);
       res.status(201).json(listing);
     } catch (err) {
-      if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+      if (err.status) {
+        return res.status(err.status).json({
+          error: err.message,
+          code: err.code
+        });
       }
       throw err;
     }
   });
 
   app.patch("/api/swap-listings/:id", csrfProtection, async (req, res) => {
-    const listing = await storage.updateSwapListing(Number(req.params.id), req.body);
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        error: "Invalid ID format",
+        code: "INVALID_ID"
+      });
+    }
+    const listing = await storage.updateSwapListing(id, req.body);
     if (!listing) {
-      return res.status(404).json({ message: "Swap listing not found" });
+      return res.status(404).json({
+        error: "Swap listing not found",
+        code: "NOT_FOUND"
+      });
     }
     res.json(listing);
   });
 
   app.delete("/api/swap-listings/:id", csrfProtection, async (req, res) => {
-    const success = await storage.deleteSwapListing(Number(req.params.id));
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        error: "Invalid ID format",
+        code: "INVALID_ID"
+      });
+    }
+    const success = await storage.deleteSwapListing(id);
     if (!success) {
-      return res.status(404).json({ message: "Swap listing not found" });
+      return res.status(404).json({
+        error: "Swap listing not found",
+        code: "NOT_FOUND"
+      });
     }
     res.status(204).end();
   });
@@ -276,7 +437,7 @@ export async function registerRoutes(app: Express) {
   app.post("/api/chat-messages", csrfProtection, async (req, res) => {
     try {
       // Validate and store user message
-      const userMessage = insertChatMessageSchema.parse(req.body);
+      const userMessage = await validateRequest(insertChatMessageSchema, req.body);
       const savedUserMessage = await storage.createChatMessage(userMessage);
 
       // Get conversation history for context
@@ -309,26 +470,22 @@ export async function registerRoutes(app: Express) {
         actionResult,
       });
     } catch (err) {
-      if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+      if (err.status) {
+        return res.status(err.status).json({
+          error: err.message,
+          code: err.code
+        });
       }
       console.error("Error processing chat message:", err);
       res.status(500).json({ message: "Failed to process message" });
     }
   });
 
-  // Add plant health diagnosis route
-  // Add input validation schema
-  const plantDiagnosisSchema = z.object({
-    image: z.string().min(1, "Image data is required"),
-  });
-
-  // Update the plant health diagnosis route with validation
+  // Plant health diagnosis route with enhanced validation
   app.post("/api/diagnose-plant", csrfProtection, async (req, res) => {
     try {
-      const { image } = plantDiagnosisSchema.parse(req.body);
+      const { data: imageData } = await validateRequest(imageSchema, req.body);
 
-      // Generate health analysis using OpenAI
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -345,7 +502,7 @@ export async function registerRoutes(app: Express) {
               },
               {
                 type: "image_url",
-                image_url: { url: image }
+                image_url: { url: imageData }
               }
             ]
           }
@@ -356,10 +513,10 @@ export async function registerRoutes(app: Express) {
       const result = JSON.parse(response.choices[0].message.content || "{}");
       res.json(result);
     } catch (error) {
-      if (error instanceof ZodError) {
+      if (error.status === 400) {
         return res.status(400).json({
-          error: "Validation Error",
-          details: error.errors[0].message
+          error: error.message,
+          code: "VALIDATION_ERROR"
         });
       }
       console.error("Plant diagnosis error:", error);
@@ -384,9 +541,19 @@ export async function registerRoutes(app: Express) {
 
   app.get("/api/rescue-missions/:id", async (req, res) => {
     try {
-      const mission = await storage.getRescueMission(Number(req.params.id));
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({
+          error: "Invalid ID format",
+          code: "INVALID_ID"
+        });
+      }
+      const mission = await storage.getRescueMission(id);
       if (!mission) {
-        return res.status(404).json({ message: "Rescue mission not found" });
+        return res.status(404).json({
+          error: "Rescue mission not found",
+          code: "NOT_FOUND"
+        });
       }
       res.json(mission);
     } catch (error) {
@@ -397,12 +564,15 @@ export async function registerRoutes(app: Express) {
 
   app.post("/api/rescue-missions", csrfProtection, async (req, res) => {
     try {
-      const missionData = insertRescueMissionSchema.parse(req.body);
+      const missionData = await validateRequest(insertRescueMissionSchema, req.body);
       const mission = await storage.createRescueMission(missionData);
       res.status(201).json(mission);
     } catch (err) {
-      if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+      if (err.status) {
+        return res.status(err.status).json({
+          error: err.message,
+          code: err.code
+        });
       }
       console.error("Error creating rescue mission:", err);
       res.status(500).json({ message: "Failed to create rescue mission" });
@@ -411,9 +581,19 @@ export async function registerRoutes(app: Express) {
 
   app.patch("/api/rescue-missions/:id", csrfProtection, async (req, res) => {
     try {
-      const mission = await storage.updateRescueMission(Number(req.params.id), req.body);
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({
+          error: "Invalid ID format",
+          code: "INVALID_ID"
+        });
+      }
+      const mission = await storage.updateRescueMission(id, req.body);
       if (!mission) {
-        return res.status(404).json({ message: "Rescue mission not found" });
+        return res.status(404).json({
+          error: "Rescue mission not found",
+          code: "NOT_FOUND"
+        });
       }
       res.json(mission);
     } catch (error) {
@@ -424,7 +604,14 @@ export async function registerRoutes(app: Express) {
 
   app.get("/api/rescue-missions/:id/responses", async (req, res) => {
     try {
-      const responses = await storage.getRescueResponses(Number(req.params.id));
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({
+          error: "Invalid ID format",
+          code: "INVALID_ID"
+        });
+      }
+      const responses = await storage.getRescueResponses(id);
       res.json(responses);
     } catch (error) {
       console.error("Error fetching rescue responses:", error);
@@ -434,15 +621,25 @@ export async function registerRoutes(app: Express) {
 
   app.post("/api/rescue-missions/:id/responses", csrfProtection, async (req, res) => {
     try {
-      const responseData = insertRescueResponseSchema.parse({
-        ...req.body,
-        missionId: Number(req.params.id),
-      });
+      const missionId = Number(req.params.id);
+      if (isNaN(missionId)) {
+        return res.status(400).json({
+          error: "Invalid mission ID",
+          code: "INVALID_ID"
+        });
+      }
+      const responseData = await validateRequest(
+        insertRescueResponseSchema,
+        { ...req.body, missionId }
+      );
       const response = await storage.createRescueResponse(responseData);
       res.status(201).json(response);
     } catch (err) {
-      if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+      if (err.status) {
+        return res.status(err.status).json({
+          error: err.message,
+          code: err.code
+        });
       }
       console.error("Error creating rescue response:", err);
       res.status(500).json({ message: "Failed to create rescue response" });
