@@ -18,11 +18,17 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   useEffect(() => {
-    // Check if notifications are already enabled
-    setNotificationsEnabled(Notification.permission === "granted");
+    // Initial check for notification support and permission
+    const checkNotificationStatus = () => {
+      if ("Notification" in window) {
+        setNotificationsEnabled(Notification.permission === "granted");
+      }
+    };
 
-    // Only set up notifications if they're enabled
-    if (Notification.permission === "granted") {
+    checkNotificationStatus();
+
+    // Only set up notifications if they're supported and enabled
+    if ("Notification" in window && Notification.permission === "granted") {
       // Initial check for any pending notifications
       const notifications = checkPlantCareNotifications(plant);
       notifications.forEach(notification => {
@@ -93,6 +99,15 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
 
   const toggleNotifications = async () => {
     try {
+      if (!("Notification" in window)) {
+        toast({
+          title: "Notifications not supported",
+          description: "Your browser doesn't support notifications. Try using a modern browser like Chrome or Firefox.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (notificationsEnabled) {
         setNotificationsEnabled(false);
         toast({
@@ -100,24 +115,6 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
           description: "You won't receive plant care reminders.",
         });
       } else {
-        if (!("Notification" in window)) {
-          toast({
-            title: "Notifications not supported",
-            description: "Your browser doesn't support notifications. Try using a modern browser like Chrome or Firefox.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        if (!window.isSecureContext) {
-          toast({
-            title: "Secure context required",
-            description: "Notifications require a secure (HTTPS) connection.",
-            variant: "destructive",
-          });
-          return;
-        }
-
         const granted = await requestNotificationPermission();
         setNotificationsEnabled(granted);
 
