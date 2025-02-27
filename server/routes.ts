@@ -29,24 +29,6 @@ const csrfProtection = csrf({
   } 
 });
 
-// Add input validation schemas
-const imageSchema = z.object({
-  data: z.string()
-    .min(1, "Image data is required")
-    .refine(
-      (val) => val.startsWith('data:image/'),
-      "Invalid image format. Must be a valid base64 image."
-    ),
-  type: z.enum(["image/jpeg", "image/png", "image/webp"], {
-    errorMap: () => ({ message: "Unsupported image type. Use JPEG, PNG, or WebP." })
-  })
-});
-
-const dateSchema = z.string().refine(
-  (val) => !isNaN(Date.parse(val)),
-  "Invalid date format"
-);
-
 interface ValidationError extends Error {
   status: number;
   code: string;
@@ -662,6 +644,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Enhanced error handling middleware
   app.use((err: Error | ValidationError, _req: Request, res: Response, _next: NextFunction) => {
     console.error('Error:', err);
     const status = 'status' in err ? err.status : 500;
@@ -676,6 +659,7 @@ export async function registerRoutes(app: Express) {
   });
 
   const server = createServer(app);
+
   // Cleanup Gradio process on server shutdown
   process.on('SIGTERM', () => {
     if (gradioProcess) {
@@ -685,6 +669,7 @@ export async function registerRoutes(app: Express) {
 
   return server;
 }
+
 let gradioProcess: any = null;
 
 function startGradioServer() {
@@ -701,3 +686,20 @@ function startGradioServer() {
     console.error('Gradio error:', data.toString());
   });
 }
+
+const dateSchema = z.string().refine(
+  (val) => !isNaN(Date.parse(val)),
+  "Invalid date format"
+);
+
+const imageSchema = z.object({
+  data: z.string()
+    .min(1, "Image data is required")
+    .refine(
+      (val) => val.startsWith('data:image/'),
+      "Invalid image format. Must be a valid base64 image."
+    ),
+  type: z.enum(["image/jpeg", "image/png", "image/webp"], {
+    errorMap: () => ({ message: "Unsupported image type. Use JPEG, PNG, or WebP." })
+  })
+});
