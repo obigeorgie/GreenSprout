@@ -1,7 +1,9 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
+import { setupAuth } from "./auth";
 import { insertPlantSchema, insertGrowthTimelineSchema, insertSwapListingSchema, insertChatMessageSchema, insertRescueMissionSchema, insertRescueResponseSchema } from "@shared/schema";
+import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import { spawn } from "child_process";
 import path from "path";
@@ -53,6 +55,9 @@ const validateRequest = async <T>(schema: z.ZodSchema<T>, data: unknown): Promis
 export async function registerRoutes(app: Express) {
   // Add cookie parser middleware
   app.use(cookieParser());
+
+  // Set up authentication first
+  setupAuth(app);
 
   // Add safe debug logging for cookie and CSRF setup
   app.use((req: Request, res: Response, next: NextFunction) => {

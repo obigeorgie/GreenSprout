@@ -13,19 +13,24 @@ import MobileNav from "@/components/mobile-nav";
 import RescueMissions from "@/pages/rescue-missions";
 import Tutorial from "@/pages/tutorial";
 import HealthScan from "@/pages/health-scan";
+import { AuthProvider } from "@/hooks/use-auth";
+import { ProtectedRoute } from "@/lib/protected-route";
+import AuthPage from "@/pages/auth"; // Assuming this component exists
+
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/add" component={AddPlant} />
-      <Route path="/identify" component={IdentifyPlant} />
-      <Route path="/plant/:id" component={PlantDetail} />
-      <Route path="/marketplace" component={Marketplace} />
-      <Route path="/chat" component={Chat} />
-      <Route path="/rescue-missions" component={RescueMissions} />
+      <Route path="/auth" component={AuthPage} />
       <Route path="/tutorial" component={Tutorial} />
-      <Route path="/health-scan" component={HealthScan} />
+      <ProtectedRoute path="/" component={Home} />
+      <ProtectedRoute path="/add" component={AddPlant} />
+      <ProtectedRoute path="/identify" component={IdentifyPlant} />
+      <ProtectedRoute path="/plant/:id" component={PlantDetail} />
+      <ProtectedRoute path="/marketplace" component={Marketplace} />
+      <ProtectedRoute path="/chat" component={Chat} />
+      <ProtectedRoute path="/rescue-missions" component={RescueMissions} />
+      <ProtectedRoute path="/health-scan" component={HealthScan} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -34,13 +39,15 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background">
-        <main className="container mx-auto px-4 pb-20">
-          <Router />
-        </main>
-        <MobileNav />
-      </div>
-      <Toaster />
+      <AuthProvider>
+        <div className="min-h-screen bg-background">
+          <main className="container mx-auto px-4 pb-20">
+            <Router />
+          </main>
+          <MobileNav />
+        </div>
+        <Toaster />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
