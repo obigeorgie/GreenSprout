@@ -281,7 +281,7 @@ export async function registerRoutes(app: Express) {
           code: "VALIDATION_ERROR"
         });
       }
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to identify plant",
         code: "IDENTIFICATION_FAILED"
       });
