@@ -50,12 +50,35 @@ const validateRequest = async <T>(schema: z.ZodSchema<T>, data: unknown): Promis
   }
 };
 
+// Add at the top of the file after imports
+const debugCSRF = (req: Request, res: Response, next: NextFunction) => {
+  const requestInfo = {
+    method: req.method,
+    path: req.path,
+    csrfToken: req.csrfToken?.(),
+    headers: {
+      cookie: req.headers.cookie,
+      csrf: req.headers['csrf-token'] || req.headers['x-csrf-token'],
+      contentType: req.headers['content-type']
+    },
+    body: req.method !== 'GET' ? JSON.stringify(req.body).slice(0, 100) : undefined,
+    timestamp: new Date().toISOString(),
+    sessionID: req.sessionID
+  };
+
+  console.log('CSRF Debug:', JSON.stringify(requestInfo, null, 2));
+  next();
+};
+
 export async function registerRoutes(app: Express) {
   // Add cookie parser middleware
   app.use(cookieParser());
 
   // Add payment routes BEFORE CSRF protection
   app.use('/api/payments', paymentRoutes);
+
+  // Add CSRF debug middleware before CSRF protection
+  app.use(debugCSRF);
 
   // Add CSRF protection to all routes EXCEPT /api/payments
   app.use(csrfProtection);

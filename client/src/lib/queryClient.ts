@@ -5,8 +5,10 @@ let csrfToken = "";
 async function getCsrfToken(): Promise<string> {
   if (csrfToken) return csrfToken;
 
+  console.log('Fetching new CSRF token');
   const response = await fetch('/api/csrf-token');
   const data = await response.json() as { csrfToken: string };
+  console.log('Received CSRF token:', data.csrfToken ? '✓' : '✗');
   csrfToken = data.csrfToken;
   return csrfToken;
 }
@@ -14,6 +16,11 @@ async function getCsrfToken(): Promise<string> {
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
+    console.error('API Error:', {
+      status: res.status,
+      statusText: res.statusText,
+      body: text
+    });
     throw new Error(`${res.status}: ${text}`);
   }
 }
@@ -24,6 +31,10 @@ export async function apiRequest(
   data?: unknown,
 ): Promise<Response> {
   const headers: Record<string, string> = {};
+  console.log(`API Request: ${method} ${url}`, {
+    hasData: !!data,
+    timestamp: new Date().toISOString()
+  });
 
   // Add content type for requests with body
   if (data) {
@@ -34,6 +45,7 @@ export async function apiRequest(
   if (method !== 'GET' && method !== 'HEAD') {
     const token = await getCsrfToken();
     headers['CSRF-Token'] = token;
+    console.log('Added CSRF token to request headers');
   }
 
   const res = await fetch(url, {
@@ -41,6 +53,12 @@ export async function apiRequest(
     headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
+  });
+
+  console.log(`API Response: ${method} ${url}`, {
+    status: res.status,
+    ok: res.ok,
+    timestamp: new Date().toISOString()
   });
 
   await throwIfResNotOk(res);
@@ -54,11 +72,17 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    console.log('Query execution:', {
+      key: queryKey[0],
+      timestamp: new Date().toISOString()
+    });
+
     const res = await fetch(queryKey[0] as string, {
       credentials: "include",
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+      console.log('Returning null due to 401 response');
       return null;
     }
 
