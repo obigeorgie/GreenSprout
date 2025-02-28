@@ -11,11 +11,17 @@ import OpenAI from "openai";
 import * as z from 'zod';
 import csrf from 'csurf';
 import cookieParser from 'cookie-parser';
+import paymentRoutes from './paymentRoutes';
 
 declare module 'express' {
   interface Request {
     csrfToken(): string;
   }
+}
+
+interface ValidationError extends Error {
+  status: number;
+  code: string;
 }
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -28,11 +34,6 @@ const csrfProtection = csrf({
     sameSite: 'strict'
   } 
 });
-
-interface ValidationError extends Error {
-  status: number;
-  code: string;
-}
 
 // Validate request with schema and handle errors consistently
 const validateRequest = async <T>(schema: z.ZodSchema<T>, data: unknown): Promise<T> => {
@@ -91,14 +92,15 @@ export async function registerRoutes(app: Express) {
       const plantData = await validateRequest(insertPlantSchema, req.body);
       const plant = await storage.createPlant(plantData);
       res.status(201).json(plant);
-    } catch (err) {
-      if (err.status) {
-        return res.status(err.status).json({
-          error: err.message,
-          code: err.code
+    } catch (error) {
+      if ((error as ValidationError).status) {
+        const validationError = error as ValidationError;
+        return res.status(validationError.status).json({
+          error: validationError.message,
+          code: validationError.code
         });
       }
-      throw err;
+      throw error;
     }
   });
 
@@ -186,22 +188,25 @@ export async function registerRoutes(app: Express) {
       }
 
       const entryData = await validateRequest(
-        insertGrowthTimelineSchema.extend({
-          entryDate: dateSchema
-        }),
-        { ...req.body, plantId }
+        insertGrowthTimelineSchema,
+        { 
+          ...req.body, 
+          plantId,
+          milestone: req.body.milestone ?? false 
+        }
       );
 
       const entry = await storage.addGrowthTimelineEntry(entryData);
       res.status(201).json(entry);
-    } catch (err) {
-      if (err.status) {
-        return res.status(err.status).json({
-          error: err.message,
-          code: err.code
+    } catch (error) {
+      if ((error as ValidationError).status) {
+        const validationError = error as ValidationError;
+        return res.status(validationError.status).json({
+          error: validationError.message,
+          code: validationError.code
         });
       }
-      throw err;
+      throw error;
     }
   });
 
@@ -643,6 +648,9 @@ export async function registerRoutes(app: Express) {
       res.status(500).json({ message: "Failed to create rescue response" });
     }
   });
+
+  // Add payment routes
+  app.use('/api/payments', paymentRoutes);
 
   // Enhanced error handling middleware
   app.use((err: Error | ValidationError, _req: Request, res: Response, _next: NextFunction) => {

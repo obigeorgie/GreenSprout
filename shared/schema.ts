@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -323,3 +323,87 @@ export type RescueMission = typeof rescueMissions.$inferSelect;
 export type InsertRescueMission = z.infer<typeof insertRescueMissionSchema>;
 export type RescueResponse = typeof rescueResponses.$inferSelect;
 export type InsertRescueResponse = z.infer<typeof insertRescueResponseSchema>;
+
+// Payment and subscription related tables
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  interval: text("interval").notNull(), // "monthly" or "yearly"
+  features: text("features").array().notNull(),
+  stripeProductId: text("stripe_product_id").notNull(),
+  stripePriceId: text("stripe_price_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(), // Reference to auth user
+  planId: integer("plan_id").references(() => subscriptionPlans.id).notNull(),
+  status: text("status").notNull(), // "active", "canceled", "past_due"
+  currentPeriodStart: timestamp("current_period_start").notNull(),
+  currentPeriodEnd: timestamp("current_period_end").notNull(),
+  stripeSubscriptionId: text("stripe_subscription_id").notNull(),
+  stripeCustomerId: text("stripe_customer_id").notNull(),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(), // Reference to auth user
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").default("usd").notNull(),
+  status: text("status").notNull(), // "succeeded", "pending", "failed"
+  type: text("type").notNull(), // "subscription", "one_time"
+  stripePaymentIntentId: text("stripe_payment_intent_id").notNull(),
+  metadata: jsonb("metadata"), // For storing additional payment context
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Add after the last relation definition
+export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
+  subscriptions: many(subscriptions),
+}));
+
+export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+  plan: one(subscriptionPlans, {
+    fields: [subscriptions.planId],
+    references: [subscriptionPlans.id],
+  }),
+}));
+
+// Add after the last schema definition
+export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    name: z.string().min(1, "Plan name is required"),
+    description: z.string().min(1, "Plan description is required"),
+    price: z.number().positive("Price must be positive"),
+    interval: z.enum(["monthly", "yearly"]),
+    features: z.array(z.string()),
+  });
+
+export const insertSubscriptionSchema = createInsertSchema(subscriptions)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({
+    status: z.enum(["active", "canceled", "past_due"]),
+  });
+
+export const insertPaymentSchema = createInsertSchema(payments)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    amount: z.number().positive("Amount must be positive"),
+    status: z.enum(["succeeded", "pending", "failed"]),
+    type: z.enum(["subscription", "one_time"]),
+  });
+
+// Add after the last type definition
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
