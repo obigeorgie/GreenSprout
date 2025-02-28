@@ -9,21 +9,47 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Redirect } from "wouter";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
+  console.log("Auth page render:", { 
+    hasUser: !!user,
+    isLoginPending: loginMutation.isPending,
+    isRegisterPending: registerMutation.isPending
+  });
+
+  useEffect(() => {
+    console.log("Auth page mounted");
+    return () => console.log("Auth page unmounted");
+  }, []);
 
   // Redirect if already logged in
   if (user) {
+    console.log("User already logged in, redirecting to /");
     return <Redirect to="/" />;
   }
 
   const loginForm = useForm<Pick<InsertUser, "username" | "password">>({
     resolver: zodResolver(insertUserSchema.pick({ username: true, password: true })),
+    defaultValues: {
+      username: "",
+      password: ""
+    }
   });
 
   const registerForm = useForm<InsertUser>({
     resolver: zodResolver(insertUserSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      password: ""
+    }
+  });
+
+  console.log("Form states:", {
+    loginErrors: loginForm.formState.errors,
+    registerErrors: registerForm.formState.errors
   });
 
   return (
@@ -43,7 +69,9 @@ export default function AuthPage() {
         </div>
       </div>
       <div className="p-8">
-        <Tabs defaultValue="login" className="w-full max-w-md mx-auto">
+        <Tabs defaultValue="login" className="w-full max-w-md mx-auto" onValueChange={(value) => {
+          console.log("Tab changed to:", value);
+        }}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Login</TabsTrigger>
             <TabsTrigger value="register">Register</TabsTrigger>
@@ -51,7 +79,10 @@ export default function AuthPage() {
           <TabsContent value="login">
             <Card className="p-6">
               <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(data => loginMutation.mutate(data))}>
+                <form onSubmit={loginForm.handleSubmit(data => {
+                  console.log("Login form submitted:", data);
+                  loginMutation.mutate(data);
+                })}>
                   <div className="space-y-4">
                     <FormField
                       control={loginForm.control}
@@ -98,7 +129,10 @@ export default function AuthPage() {
           <TabsContent value="register">
             <Card className="p-6">
               <Form {...registerForm}>
-                <form onSubmit={registerForm.handleSubmit(data => registerMutation.mutate(data))}>
+                <form onSubmit={registerForm.handleSubmit(data => {
+                  console.log("Register form submitted:", data);
+                  registerMutation.mutate(data);
+                })}>
                   <div className="space-y-4">
                     <FormField
                       control={registerForm.control}
