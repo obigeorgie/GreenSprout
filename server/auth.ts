@@ -50,6 +50,7 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        console.log('Local strategy login attempt for username:', username);
         const user = await storage.getUserByUsername(username);
         if (!user || !(await comparePasswords(password, user.password))) {
           return done(null, false);
@@ -64,12 +65,18 @@ export function setupAuth(app: Express) {
   );
 
   // Google Strategy
+  const callbackURL = process.env.NODE_ENV === 'production'
+    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
+    : 'http://localhost:5000/auth/google/callback';
+
+  console.log('Configuring Google OAuth with callback URL:', callbackURL);
+
   passport.use(
     new GoogleStrategy(
       {
         clientID: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-        callbackURL: "/auth/google/callback",
+        callbackURL,
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
@@ -191,7 +198,7 @@ export function setupAuth(app: Express) {
     (req, res, next) => {
       console.log("Received Google OAuth callback");
       passport.authenticate("google", {
-        failureRedirect: "/auth",
+        failureRedirect: "/auth?error=google-auth-failed",
         failureMessage: true,
       })(req, res, next);
     },

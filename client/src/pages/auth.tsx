@@ -11,22 +11,36 @@ import { Redirect } from "wouter";
 import { Loader2, Sprout } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
 import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast"; // Fixed import
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation, loginWithGoogle } = useAuth();
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const { toast } = useToast(); // Use the hook
+
+  // Get error from URL if present
+  const params = new URLSearchParams(window.location.search);
+  const authError = params.get('error');
 
   console.log("Auth page render:", { 
     hasUser: !!user,
     isLoginPending: loginMutation.isPending,
     isRegisterPending: registerMutation.isPending,
-    isRedirecting
+    isRedirecting,
+    authError
   });
 
   useEffect(() => {
     console.log("Auth page mounted");
+    if (authError === 'google-auth-failed') {
+      toast({
+        title: "Authentication Failed",
+        description: "Google sign-in was unsuccessful. Please try again.",
+        variant: "destructive",
+      });
+    }
     return () => console.log("Auth page unmounted");
-  }, []);
+  }, [authError, toast]);
 
   // Redirect if already logged in
   if (user) {
