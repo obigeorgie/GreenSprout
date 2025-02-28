@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { type Plant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Droplets, Sun, Sprout, Bell, BellOff } from "lucide-react";
@@ -16,8 +16,15 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
   const { toast } = useToast();
   const [updating, setUpdating] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const componentMounted = useRef(true);
 
   useEffect(() => {
+    console.log('CareSchedule mounted:', {
+      plantId: plant.id,
+      notificationsEnabled: notificationsEnabled,
+      timestamp: new Date().toISOString()
+    });
+
     // Initial check for notification support and permission
     const checkNotificationStatus = () => {
       if ("Notification" in window) {
@@ -29,19 +36,36 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
 
     // Only set up notifications if they're supported and enabled
     if ("Notification" in window && Notification.permission === "granted") {
+      console.log('Setting up notifications for plant:', plant.id);
+
       // Initial check for any pending notifications
       const notifications = checkPlantCareNotifications(plant);
       notifications.forEach(notification => {
-        showNotification(notification.title, {
-          body: notification.body,
-          icon: notification.icon,
-        });
+        if (componentMounted.current) {
+          console.log('Showing notification:', {
+            title: notification.title,
+            timestamp: new Date().toISOString()
+          });
+          showNotification(notification.title, {
+            body: notification.body,
+            icon: notification.icon,
+          });
+        }
       });
 
       // Set up periodic checks
       const checkInterval = setInterval(() => {
+        if (!componentMounted.current) {
+          console.log('Skipping notification check - component unmounted');
+          return;
+        }
+
         const notifications = checkPlantCareNotifications(plant);
         notifications.forEach(notification => {
+          console.log('Periodic notification check:', {
+            title: notification.title,
+            timestamp: new Date().toISOString()
+          });
           showNotification(notification.title, {
             body: notification.body,
             icon: notification.icon,
@@ -49,51 +73,98 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
         });
       }, 60 * 60 * 1000); // Check every hour
 
-      return () => clearInterval(checkInterval);
+      return () => {
+        console.log('CareSchedule cleanup:', {
+          plantId: plant.id,
+          timestamp: new Date().toISOString()
+        });
+        componentMounted.current = false;
+        clearInterval(checkInterval);
+      };
     }
   }, [plant]);
 
   const handleWater = async () => {
     try {
+      console.log('Handling water action:', {
+        plantId: plant.id,
+        timestamp: new Date().toISOString()
+      });
+
       setUpdating(true);
       await apiRequest("PATCH", `/api/plants/${plant.id}`, {
         lastWatered: new Date(),
       });
-      onUpdate();
-      toast({
-        title: "Plant watered!",
-        description: "Watering schedule has been updated.",
-      });
+
+      if (componentMounted.current) {
+        onUpdate();
+        toast({
+          title: "Plant watered!",
+          description: "Watering schedule has been updated.",
+        });
+      } else {
+        console.log('Skipping state update - component unmounted');
+      }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update watering schedule.",
-        variant: "destructive",
+      console.error('Water action error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        plantId: plant.id,
+        timestamp: new Date().toISOString()
       });
+
+      if (componentMounted.current) {
+        toast({
+          title: "Error",
+          description: "Failed to update watering schedule.",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setUpdating(false);
+      if (componentMounted.current) {
+        setUpdating(false);
+      }
     }
   };
 
   const handleFertilize = async () => {
     try {
+      console.log('Handling fertilize action:', {
+        plantId: plant.id,
+        timestamp: new Date().toISOString()
+      });
+
       setUpdating(true);
       await apiRequest("PATCH", `/api/plants/${plant.id}`, {
         lastFertilized: new Date(),
       });
-      onUpdate();
-      toast({
-        title: "Plant fertilized!",
-        description: "Fertilizer schedule has been updated.",
-      });
+
+      if (componentMounted.current) {
+        onUpdate();
+        toast({
+          title: "Plant fertilized!",
+          description: "Fertilizer schedule has been updated.",
+        });
+      } else {
+        console.log('Skipping state update - component unmounted');
+      }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update fertilizer schedule.",
-        variant: "destructive",
+      console.error('Fertilize action error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        plantId: plant.id,
+        timestamp: new Date().toISOString()
       });
+
+      if (componentMounted.current) {
+        toast({
+          title: "Error",
+          description: "Failed to update fertilizer schedule.",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setUpdating(false);
+      if (componentMounted.current) {
+        setUpdating(false);
+      }
     }
   };
 
