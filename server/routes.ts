@@ -230,6 +230,13 @@ export async function registerRoutes(app: Express) {
   // Plant identification route
   app.post("/api/identify-plant", csrfProtection, async (req, res) => {
     try {
+      console.log('Plant identification request:', {
+        hasImage: !!req.body.data,
+        contentType: req.headers['content-type'],
+        dataLength: req.body.data?.length,
+        timestamp: new Date().toISOString()
+      });
+
       const { data: image } = await validateRequest(imageSchema, req.body);
 
       // Forward the request to Gradio server
@@ -242,14 +249,22 @@ export async function registerRoutes(app: Express) {
       const result = await gradioResponse.json();
       res.json(result);
     } catch (error) {
-      if (error.status === 400) {
+      console.error('Plant identification error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        type: error instanceof Error ? error.constructor.name : typeof error,
+        timestamp: new Date().toISOString()
+      });
+
+      if ((error as ValidationError).status === 400) {
         return res.status(400).json({
-          error: error.message,
+          error: (error as Error).message,
           code: "VALIDATION_ERROR"
         });
       }
-      console.error("Plant identification error:", error);
-      res.status(500).json({ message: "Failed to identify plant" });
+      res.status(500).json({ 
+        error: "Failed to identify plant",
+        code: "IDENTIFICATION_FAILED"
+      });
     }
   });
 
@@ -454,8 +469,16 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Add logging for chat message validation
   app.post("/api/chat-messages", csrfProtection, async (req, res) => {
     try {
+      console.log('Chat message request:', {
+        hasContent: !!req.body.content,
+        contentLength: req.body.content?.length,
+        role: req.body.role,
+        timestamp: new Date().toISOString()
+      });
+
       // Validate and store user message
       const userMessage = await validateRequest(insertChatMessageSchema, req.body);
       const savedUserMessage = await storage.createChatMessage(userMessage);
@@ -490,13 +513,19 @@ export async function registerRoutes(app: Express) {
         actionResult,
       });
     } catch (err) {
-      if (err.status) {
-        return res.status(err.status).json({
-          error: err.message,
-          code: err.code
+      console.error('Chat message error:', {
+        error: err instanceof Error ? err.message : 'Unknown error',
+        type: err instanceof Error ? err.constructor.name : typeof err,
+        validationFailed: (err as ValidationError)?.status === 400,
+        timestamp: new Date().toISOString()
+      });
+
+      if ((err as ValidationError).status) {
+        return res.status((err as ValidationError).status).json({
+          error: (err as Error).message,
+          code: (err as ValidationError).code
         });
       }
-      console.error("Error processing chat message:", err);
       res.status(500).json({ message: "Failed to process message" });
     }
   });
