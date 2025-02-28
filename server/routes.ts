@@ -122,21 +122,41 @@ export async function registerRoutes(app: Express) {
   });
 
   app.patch("/api/plants/:id", csrfProtection, async (req, res) => {
-    const id = Number(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({
-        error: "Invalid ID format",
-        code: "INVALID_ID"
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({
+          error: "Invalid ID format",
+          code: "INVALID_ID"
+        });
+      }
+
+      // Convert date strings to Date objects for timestamps
+      const updateData = { ...req.body };
+      if (updateData.lastWatered) {
+        updateData.lastWatered = new Date(updateData.lastWatered);
+      }
+      if (updateData.lastFertilized) {
+        updateData.lastFertilized = new Date(updateData.lastFertilized);
+      }
+
+      console.log('Updating plant', id, 'with data:', updateData);
+
+      const plant = await storage.updatePlant(id, updateData);
+      if (!plant) {
+        return res.status(404).json({
+          error: "Plant not found",
+          code: "NOT_FOUND"
+        });
+      }
+      res.json(plant);
+    } catch (error) {
+      console.error("Plant update error:", error);
+      res.status(500).json({
+        error: "Failed to update plant",
+        code: "UPDATE_FAILED"
       });
     }
-    const plant = await storage.updatePlant(id, req.body);
-    if (!plant) {
-      return res.status(404).json({
-        error: "Plant not found",
-        code: "NOT_FOUND"
-      });
-    }
-    res.json(plant);
   });
 
   app.delete("/api/plants/:id", csrfProtection, async (req, res) => {
