@@ -9,10 +9,10 @@ const router = Router();
 const csrfProtection = csrf({ cookie: true });
 
 // Create a payment intent for one-time payments
-router.post('/create-payment-intent', csrfProtection, async (req: Request, res: Response) => {
+router.post('/create-payment-intent', async (req: Request, res: Response) => {
   try {
     const { amount, currency = 'usd' } = req.body;
-    
+
     if (!amount || amount <= 0) {
       return res.status(400).json({
         error: 'Invalid amount',
@@ -38,7 +38,7 @@ router.post('/create-payment-intent', csrfProtection, async (req: Request, res: 
 });
 
 // Create a subscription
-router.post('/create-subscription', csrfProtection, async (req: Request, res: Response) => {
+router.post('/create-subscription', async (req: Request, res: Response) => {
   try {
     const { userId, planId, paymentMethodId } = req.body;
 

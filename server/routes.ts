@@ -54,7 +54,10 @@ export async function registerRoutes(app: Express) {
   // Add cookie parser middleware
   app.use(cookieParser());
 
-  // Add CSRF protection to all routes
+  // Add payment routes BEFORE CSRF protection
+  app.use('/api/payments', paymentRoutes);
+
+  // Add CSRF protection to all routes EXCEPT /api/payments
   app.use(csrfProtection);
 
   // Provide CSRF token to the frontend
@@ -649,8 +652,6 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  // Add payment routes
-  app.use('/api/payments', paymentRoutes);
 
   // Enhanced error handling middleware
   app.use((err: Error | ValidationError, _req: Request, res: Response, _next: NextFunction) => {
