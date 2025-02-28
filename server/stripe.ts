@@ -5,7 +5,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-02-15', // Use the latest stable API version
+  apiVersion: '2023-10-16', // Latest stable version as of Feb 2024
   typescript: true,
 });
 
@@ -17,7 +17,7 @@ export const formatAmountForStripe = (amount: number, currency: string): number 
 };
 
 // Helper function to handle Stripe errors
-export const handleStripeError = (error: any): { status: number; message: string; code: string } => {
+export const handleStripeError = (error: Stripe.errors.StripeError | unknown): { status: number; message: string; code: string } => {
   if (error instanceof Stripe.errors.StripeError) {
     // Handle specific Stripe errors
     switch (error.type) {

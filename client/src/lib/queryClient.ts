@@ -1,12 +1,12 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-let csrfToken: string | null = null;
+let csrfToken = "";
 
 async function getCsrfToken(): Promise<string> {
   if (csrfToken) return csrfToken;
 
   const response = await fetch('/api/csrf-token');
-  const data = await response.json();
+  const data = await response.json() as { csrfToken: string };
   csrfToken = data.csrfToken;
   return csrfToken;
 }
@@ -21,11 +21,14 @@ async function throwIfResNotOk(res: Response) {
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown,
 ): Promise<Response> {
-  const headers: Record<string, string> = {
-    ...(data && { "Content-Type": "application/json" }),
-  };
+  const headers: Record<string, string> = {};
+
+  // Add content type for requests with body
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
 
   // Add CSRF token for unsafe methods
   if (method !== 'GET' && method !== 'HEAD') {
@@ -45,6 +48,7 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
@@ -59,7 +63,7 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    return res.json();
   };
 
 export const queryClient = new QueryClient({
