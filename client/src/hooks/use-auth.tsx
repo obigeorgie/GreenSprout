@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext } from "react";
+import { createContext, ReactNode, useContext, useState } from "react";
 import {
   useQuery,
   useMutation,
@@ -17,12 +17,14 @@ type AuthContextType = {
   loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<User, Error, InsertUser>;
+  loginWithGoogle: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   console.log('AuthProvider initializing');
 
@@ -111,10 +113,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const loginWithGoogle = () => {
+    if (isRedirecting) {
+      console.log('Already redirecting to Google OAuth');
+      return;
+    }
+
+    console.log('Redirecting to Google OAuth');
+    setIsRedirecting(true);
+    window.location.href = '/auth/google';
+  };
+
   console.log('AuthProvider state:', {
     hasUser: !!user,
     isLoading,
-    hasError: !!error
+    hasError: !!error,
+    isRedirecting
   });
 
   return (
@@ -126,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginMutation,
         logoutMutation,
         registerMutation,
+        loginWithGoogle,
       }}
     >
       {children}

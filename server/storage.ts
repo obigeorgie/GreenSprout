@@ -4,7 +4,7 @@ import { eq, sql, desc, or, and, lt } from "drizzle-orm";
 import { ecoProducts, type EcoProduct } from "@shared/schema";
 import { swapListings, type SwapListing, type InsertSwapListing } from "@shared/schema";
 import { chatMessages, type ChatMessage, type InsertChatMessage } from "@shared/schema";
-import { growthPredictions, type GrowthPrediction, type InsertGrowthPrediction } from "@shared/schema"; // Import the new schema
+import { growthPredictions, type GrowthPrediction, type InsertGrowthPrediction } from "@shared/schema";
 import { rescueMissions, type RescueMission, type InsertRescueMission } from "@shared/schema";
 import { rescueResponses, type RescueResponse, type InsertRescueResponse } from "@shared/schema";
 import { users, type User, type InsertUser } from "@shared/schema";
@@ -44,6 +44,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -405,6 +406,12 @@ export class DatabaseStorage implements IStorage {
   async createUser(userData: InsertUser): Promise<User> {
     console.log('Creating new user:', { username: userData.username });
     const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    console.log(`Fetching user with email: ${email}`);
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 

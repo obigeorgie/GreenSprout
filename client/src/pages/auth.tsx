@@ -9,14 +9,18 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Redirect } from "wouter";
 import { Loader2, Sprout } from "lucide-react";
-import { useEffect } from "react";
+import { SiGoogle } from "react-icons/si";
+import { useEffect, useState } from "react";
 
 export default function AuthPage() {
-  const { user, loginMutation, registerMutation } = useAuth();
+  const { user, loginMutation, registerMutation, loginWithGoogle } = useAuth();
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
   console.log("Auth page render:", { 
     hasUser: !!user,
     isLoginPending: loginMutation.isPending,
-    isRegisterPending: registerMutation.isPending
+    isRegisterPending: registerMutation.isPending,
+    isRedirecting
   });
 
   useEffect(() => {
@@ -51,6 +55,12 @@ export default function AuthPage() {
     loginErrors: loginForm.formState.errors,
     registerErrors: registerForm.formState.errors
   });
+
+  const handleGoogleLogin = () => {
+    if (isRedirecting) return;
+    setIsRedirecting(true);
+    loginWithGoogle();
+  };
 
   return (
     <div className="container relative min-h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
@@ -97,9 +107,30 @@ export default function AuthPage() {
               Enter your details to begin your plant care journey
             </p>
           </div>
-          <Tabs defaultValue="login" className="w-full" onValueChange={(value) => {
-            console.log("Tab changed to:", value);
-          }}>
+          <Button 
+            variant="outline" 
+            className="w-full"
+            onClick={handleGoogleLogin}
+            disabled={isRedirecting}
+          >
+            {isRedirecting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <SiGoogle className="mr-2 h-4 w-4" />
+            )}
+            {isRedirecting ? "Redirecting..." : "Continue with Google"}
+          </Button>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with
+              </span>
+            </div>
+          </div>
+          <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="register">Register</TabsTrigger>
