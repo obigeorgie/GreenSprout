@@ -24,17 +24,31 @@ import rateLimit from 'express-rate-limit';
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
 
-  // Configure rate limiting
-  const limiter = rateLimit({
+  // Configure separate rate limiters for different endpoints
+  const standardLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // Limit each IP to 100 requests per windowMs
     message: { error: 'Too many requests, please try again later.' },
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    standardHeaders: true,
+    legacyHeaders: false,
   });
 
-  // Apply rate limiting to all routes
-  app.use(limiter);
+  const paymentLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10, // Limit each IP to 10 payment requests per minute
+    message: { error: 'Too many payment requests, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Apply standard rate limiting to all routes except payment routes
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/payments/')) {
+      paymentLimiter(req, res, next);
+    } else {
+      standardLimiter(req, res, next);
+    }
+  });
 
   // Add request logging middleware
   app.use((req, res, next) => {
