@@ -19,7 +19,6 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
   const componentMounted = useRef(true);
 
   useEffect(() => {
-    // Initial check for notification support and permission
     const checkNotificationStatus = () => {
       if ("Notification" in window) {
         setNotificationsEnabled(Notification.permission === "granted");
@@ -28,27 +27,28 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
 
     checkNotificationStatus();
 
-    // Only set up notifications if they're supported and enabled
     if ("Notification" in window && Notification.permission === "granted") {
-      // Initial check for any pending notifications
       const notifications = checkPlantCareNotifications(plant);
       notifications.forEach(notification => {
-        showNotification(notification.title, {
-          body: notification.body,
-          icon: notification.icon,
-        });
-      });
-
-      // Set up periodic checks
-      const checkInterval = setInterval(() => {
-        const notifications = checkPlantCareNotifications(plant);
-        notifications.forEach(notification => {
+        if (componentMounted.current) {
           showNotification(notification.title, {
             body: notification.body,
             icon: notification.icon,
           });
-        });
-      }, 60 * 60 * 1000); // Check every hour
+        }
+      });
+
+      const checkInterval = setInterval(() => {
+        if (componentMounted.current) {
+          const notifications = checkPlantCareNotifications(plant);
+          notifications.forEach(notification => {
+            showNotification(notification.title, {
+              body: notification.body,
+              icon: notification.icon,
+            });
+          });
+        }
+      }, 60 * 60 * 1000);
 
       return () => {
         componentMounted.current = false;
@@ -57,52 +57,29 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
     }
   }, [plant]);
 
-  const handleWater = async () => {
-    try {
-      setUpdating(true);
-      await apiRequest("PATCH", `/api/plants/${plant.id}`, {
-        lastWatered: new Date().toISOString(), // Fix: Convert Date to ISO string
-      });
-      if (componentMounted.current) {
-        onUpdate();
-        toast({
-          title: "Plant watered!",
-          description: "Watering schedule has been updated.",
-        });
-      }
-    } catch (error) {
-      if (componentMounted.current) {
-        toast({
-          title: "Error",
-          description: "Failed to update watering schedule.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      if (componentMounted.current) {
-        setUpdating(false);
-      }
-    }
-  };
+  const handleCareAction = async (action: 'water' | 'fertilize') => {
+    if (!componentMounted.current || updating) return;
 
-  const handleFertilize = async () => {
     try {
       setUpdating(true);
-      await apiRequest("PATCH", `/api/plants/${plant.id}`, {
-        lastFertilized: new Date().toISOString(), // Fix: Convert Date to ISO string
-      });
+      const updateData = {
+        [action === 'water' ? 'lastWatered' : 'lastFertilized']: new Date().toISOString()
+      };
+
+      await apiRequest("PATCH", `/api/plants/${plant.id}`, updateData);
+
       if (componentMounted.current) {
         onUpdate();
         toast({
-          title: "Plant fertilized!",
-          description: "Fertilizer schedule has been updated.",
+          title: action === 'water' ? "Plant watered!" : "Plant fertilized!",
+          description: `${action === 'water' ? 'Watering' : 'Fertilizer'} schedule has been updated.`,
         });
       }
     } catch (error) {
       if (componentMounted.current) {
         toast({
           title: "Error",
-          description: "Failed to update fertilizer schedule.",
+          description: `Failed to update ${action === 'water' ? 'watering' : 'fertilizer'} schedule.`,
           variant: "destructive",
         });
       }
@@ -118,7 +95,7 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
       if (!("Notification" in window)) {
         toast({
           title: "Notifications not supported",
-          description: "Your browser doesn't support notifications. Try using a modern browser like Chrome or Firefox.",
+          description: "Your browser doesn't support notifications.",
           variant: "destructive",
         });
         return;
@@ -142,13 +119,12 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
         } else {
           toast({
             title: "Notifications blocked",
-            description: "Please enable notifications in your browser settings to receive reminders.",
+            description: "Please enable notifications in your browser settings.",
             variant: "destructive",
           });
         }
       }
     } catch (error) {
-      console.error("Error toggling notifications:", error);
       toast({
         title: "Error",
         description: "Failed to toggle notifications. Please try again.",
@@ -196,7 +172,7 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
         <Button
           variant="outline"
           size="sm"
-          onClick={handleWater}
+          onClick={() => handleCareAction('water')}
           disabled={updating}
         >
           Water Now
@@ -212,7 +188,7 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
               {plant.lastFertilized
                 ? `Last fertilized: ${format(
                     new Date(plant.lastFertilized),
-                    "MMM d",
+                    "MMM d"
                   )}`
                 : "Not fertilized yet"}
             </p>
@@ -221,7 +197,7 @@ export default function CareSchedule({ plant, onUpdate }: CareScheduleProps) {
         <Button
           variant="outline"
           size="sm"
-          onClick={handleFertilize}
+          onClick={() => handleCareAction('fertilize')}
           disabled={updating}
         >
           Fertilize Now
