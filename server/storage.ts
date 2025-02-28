@@ -7,6 +7,11 @@ import { chatMessages, type ChatMessage, type InsertChatMessage } from "@shared/
 import { growthPredictions, type GrowthPrediction, type InsertGrowthPrediction } from "@shared/schema"; // Import the new schema
 import { rescueMissions, type RescueMission, type InsertRescueMission } from "@shared/schema";
 import { rescueResponses, type RescueResponse, type InsertRescueResponse } from "@shared/schema";
+import { users, type User, type InsertUser } from "@shared/schema";
+import type { SessionData } from "express-session";
+import * as session from 'express-session';
+import connectPgSimple from 'connect-pg-simple';
+
 
 export interface IStorage {
   getPlants(): Promise<Plant[]>;
@@ -35,9 +40,15 @@ export interface IStorage {
   updateRescueMission(id: number, update: Partial<RescueMission>): Promise<RescueMission | undefined>;
   getRescueResponses(missionId: number): Promise<RescueResponse[]>;
   createRescueResponse(response: InsertRescueResponse): Promise<RescueResponse>;
+  sessionStore: session.Store;
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
 }
 
 export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
+
   async getPlants(): Promise<Plant[]> {
     try {
       console.log("Fetching all plants");
@@ -377,6 +388,36 @@ export class DatabaseStorage implements IStorage {
       .returning();
     console.log("Created rescue response:", newResponse);
     return newResponse;
+  }
+
+  async getUser(id: number): Promise<User | undefined> {
+    console.log(`Fetching user with id: ${id}`);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    console.log(`Fetching user with username: ${username}`);
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    console.log('Creating new user:', { username: userData.username });
+    const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
+
+  constructor() {
+    // Initialize session store with PostgreSQL
+    const PostgresStore = connectPgSimple(session);
+    this.sessionStore = new PostgresStore({
+      conObject: {
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production',
+      },
+      createTableIfMissing: true,
+    });
   }
 }
 

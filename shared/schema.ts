@@ -400,10 +400,36 @@ export const insertPaymentSchema = createInsertSchema(payments)
     type: z.enum(["subscription", "one_time"]),
   });
 
+// Add after the last table definition
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull(),
+  email: text("email").notNull(),
+  password: text("password").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    usernameIdx: uniqueIndex("username_idx").on(table.username),
+    emailIdx: uniqueIndex("email_idx").on(table.email),
+  }
+});
+
+// Add after the last relation definition
+export const usersRelations = relations(users, ({ many }) => ({
+  plants: many(plants),
+  subscriptions: many(subscriptions),
+}));
+
+// Add after the last schema definition
+export const insertUserSchema = createInsertSchema(users)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({
+    username: z.string().min(3, "Username must be at least 3 characters"),
+    email: z.string().email("Invalid email format"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+  });
+
 // Add after the last type definition
-export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
-export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
-export type Subscription = typeof subscriptions.$inferSelect;
-export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
-export type Payment = typeof payments.$inferSelect;
-export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
