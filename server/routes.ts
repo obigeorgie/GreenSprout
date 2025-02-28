@@ -27,12 +27,12 @@ interface ValidationError extends Error {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Initialize CSRF protection with secure defaults
-const csrfProtection = csrf({ 
+const csrfProtection = csrf({
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict'
-  } 
+  }
 });
 
 // Validate request with schema and handle errors consistently
@@ -53,6 +53,20 @@ const validateRequest = async <T>(schema: z.ZodSchema<T>, data: unknown): Promis
 export async function registerRoutes(app: Express) {
   // Add cookie parser middleware
   app.use(cookieParser());
+
+  // Add safe debug logging for cookie and CSRF setup
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== 'GET') {
+      console.log('Route Security:', {
+        path: req.path,
+        hasCookie: !!req.headers.cookie,
+        hasCSRF: !!req.headers['csrf-token'] || !!req.headers['x-csrf-token'],
+        method: req.method,
+        timestamp: new Date().toISOString()
+      });
+    }
+    next();
+  });
 
   // Add payment routes BEFORE CSRF protection
   app.use('/api/payments', paymentRoutes);
@@ -192,10 +206,10 @@ export async function registerRoutes(app: Express) {
 
       const entryData = await validateRequest(
         insertGrowthTimelineSchema,
-        { 
-          ...req.body, 
+        {
+          ...req.body,
           plantId,
-          milestone: req.body.milestone ?? false 
+          milestone: req.body.milestone ?? false
         }
       );
 
@@ -652,7 +666,6 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-
   // Enhanced error handling middleware
   app.use((err: Error | ValidationError, _req: Request, res: Response, _next: NextFunction) => {
     console.error('Error:', err);
@@ -660,7 +673,7 @@ export async function registerRoutes(app: Express) {
     const code = 'code' in err ? err.code : 'INTERNAL_ERROR';
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ 
+    res.status(status).json({
       error: message,
       code,
       ...(process.env.NODE_ENV === 'development' ? { stack: err.stack } : {})
