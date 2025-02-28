@@ -7,6 +7,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
+import rateLimit from "express-rate-limit";
 
 declare global {
   namespace Express {
@@ -30,6 +31,15 @@ async function comparePasswords(supplied: string, stored: string) {
 }
 
 export function setupAuth(app: Express) {
+  // Rate limiting middleware
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: "Too many authentication attempts, please try again later",
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET!,
     resave: false,
@@ -77,6 +87,7 @@ export function setupAuth(app: Express) {
         clientID: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
         callbackURL,
+        proxy: true, // Enable proxy support
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
@@ -134,6 +145,9 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Apply rate limiting to auth routes
+  app.use(["/api/login", "/api/register", "/auth/google", "/auth/google/callback"], authLimiter);
+
   app.post("/api/register", async (req, res, next) => {
     try {
       const existingUser = await storage.getUserByUsername(req.body.username);
@@ -184,6 +198,10 @@ export function setupAuth(app: Express) {
   app.get(
     "/auth/google",
     (req, res, next) => {
+      if (req.session.passport?.user) {
+        console.log("User already authenticated, redirecting to home");
+        return res.redirect("/");
+      }
       console.log("Starting Google OAuth flow");
       next();
     },
