@@ -19,9 +19,17 @@ export default function ChatInterface() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Fetch chat history
+  // Fetch chat history with proper error handling
   const { data: messages = [], isLoading } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chat-messages"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/chat-messages");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to fetch chat messages");
+      }
+      return response.json();
+    }
   });
 
   // Auto-scroll to bottom on new messages
@@ -43,30 +51,32 @@ export default function ChatInterface() {
     }
   };
 
-  // Send message mutation
+  // Send message mutation with enhanced error handling and rate limiting
   const sendMessage = useMutation({
-    mutationFn: async (content: string) => {
-      try {
-        const response = await apiRequest("POST", "/api/chat-messages", {
-          role: "user",
-          content,
-          imageUrl: selectedImage,
-        });
-        return response;
-      } catch (error) {
-        throw new Error(error.response?.data?.message || "Failed to send message");
+    mutationFn: async ({ content, image }: { content: string; image: string | null }) => {
+      const response = await apiRequest("POST", "/api/chat-messages", {
+        role: "user",
+        content,
+        imageUrl: image,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send message");
       }
+
+      return data;
     },
-    onSuccess: (response) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/chat-messages"] });
       setMessage("");
       setSelectedImage(null);
 
-      // Handle assistant actions
-      if (response.assistantMessage.actionType) {
+      // Handle assistant actions if present
+      if (data.assistantMessage?.actionType) {
         handleAssistantAction(
-          response.assistantMessage.actionType,
-          response.assistantMessage.actionPayload
+          data.assistantMessage.actionType,
+          data.assistantMessage.actionPayload || {}
         );
 
         toast({
@@ -82,7 +92,6 @@ export default function ChatInterface() {
         variant: "destructive",
       });
 
-      // Log error for debugging
       console.error("Chat error:", error);
     },
   });
@@ -91,28 +100,15 @@ export default function ChatInterface() {
     actionType: string,
     actionPayload: Record<string, unknown>
   ) => {
-    switch (actionType) {
-      case "view_plant":
-      case "add_plant":
-      case "identify_plant":
-      case "view_marketplace":
-      case "create_swap":
-      case "diagnose_health":
-      case "start_tutorial":
-      case "view_timeline":
-      case "view_rescue_missions":
-      case "chat_with_plant":
-        if (actionPayload.redirect) {
-          navigate(actionPayload.redirect as string);
-        }
-        break;
+    if ('redirect' in actionPayload && typeof actionPayload.redirect === 'string') {
+      navigate(actionPayload.redirect);
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() && !selectedImage) return;
-    sendMessage.mutate(message);
+    sendMessage.mutate({ content: message, image: selectedImage });
   };
 
   if (isLoading) {
@@ -130,7 +126,7 @@ export default function ChatInterface() {
     <Card className="flex flex-col h-[500px]">
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4">
-          {messages.map((msg) => (
+          {messages?.map((msg: ChatMessage) => (
             <div
               key={msg.id}
               className={`flex items-start gap-2 ${

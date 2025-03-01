@@ -15,8 +15,8 @@ import Tutorial from "@/pages/tutorial";
 import HealthScan from "@/pages/health-scan";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
-import AuthPage from "@/pages/auth"; // Assuming this component exists
-
+import AuthPage from "@/pages/auth";
+import CopilotWrapper from "@/components/copilot-provider";
 
 function Router() {
   return (
@@ -40,13 +40,15 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <div className="min-h-screen bg-background">
-          <main className="container mx-auto px-4 pb-20">
-            <Router />
-          </main>
-          <MobileNav />
-        </div>
-        <Toaster />
+        <CopilotWrapper>
+          <div className="min-h-screen bg-background">
+            <main className="container mx-auto px-4 pb-20">
+              <Router />
+            </main>
+            <MobileNav />
+          </div>
+          <Toaster />
+        </CopilotWrapper>
       </AuthProvider>
     </QueryClientProvider>
   );
