@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Bot, User, Camera } from "lucide-react";
+import { Send, Bot, User, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -15,31 +15,18 @@ export default function ChatInterface() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { data: messages = [], isLoading, error } = useQuery<ChatMessage[]>({
+  const { data: messages = [], isLoading } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chat-messages"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/chat-messages");
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch chat messages");
-      }
-      return response.json();
-    },
-  });
-
-  useEffect(() => {
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load chat history. Please try again later.",
-        variant: "destructive",
-      });
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error: any) => {
+      // Don't retry on 4xx errors
+      if (error.status >= 400 && error.status < 500) return false;
+      return failureCount < 3;
     }
-  }, [error, toast]);
+  });
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -47,36 +34,30 @@ export default function ChatInterface() {
     }
   }, [messages]);
 
-  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const sendMessage = useMutation({
-    mutationFn: async ({ content, image }: { content: string; image: string | null }) => {
-      const response = await apiRequest("POST", "/api/chat-messages", {
-        role: "user",
-        content,
-        imageUrl: image,
-      });
+    mutationFn: async (content: string) => {
+      if (isSubmitting) return; // Prevent duplicate submissions
+      setIsSubmitting(true);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to send message");
+      try {
+        const response = await apiRequest("POST", "/api/chat-messages", {
+          role: "user",
+          content,
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || "Failed to send message");
+        }
+
+        return response.json();
+      } finally {
+        setIsSubmitting(false);
       }
-
-      return response.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/chat-messages"] });
       setMessage("");
-      setSelectedImage(null);
 
       if (data.assistantMessage?.actionType) {
         handleAssistantAction(
@@ -88,7 +69,7 @@ export default function ChatInterface() {
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to send message",
+        description: error.message || "Failed to send message. Please try again.",
         variant: "destructive",
       });
     },
@@ -103,18 +84,18 @@ export default function ChatInterface() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() && !selectedImage) return;
-    sendMessage.mutate({ content: message, image: selectedImage });
+    if (!message.trim() || sendMessage.isPending || isSubmitting) return;
+    sendMessage.mutate(message);
   };
 
   if (isLoading) {
     return (
-      <Card className="p-4">
-        <div className="space-y-2">
-          <div className="h-8 bg-muted rounded animate-pulse" />
-          <div className="h-8 bg-muted rounded animate-pulse w-3/4" />
+      <Card className="p-6">
+        <div className="flex items-center justify-center space-x-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading chat history...</span>
         </div>
       </Card>
     );
@@ -148,68 +129,41 @@ export default function ChatInterface() {
                     {msg.role === "assistant" ? "PlantBuddy" : "You"}
                   </span>
                 </div>
-                {msg.imageUrl && (
-                  <img
-                    src={msg.imageUrl}
-                    alt="Shared plant"
-                    className="mb-2 rounded-md max-w-full"
-                  />
-                )}
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                <p className="text-sm whitespace-pre-wrap break-words">
+                  {msg.content}
+                </p>
               </div>
             </div>
           ))}
+          {(sendMessage.isPending || isSubmitting) && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm">PlantBuddy is thinking...</span>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
       <form onSubmit={handleSubmit} className="p-4 border-t">
         <div className="flex gap-2">
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleImageSelect}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Camera className="h-4 w-4" />
-          </Button>
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Ask PlantBuddy anything about your plants..."
-            disabled={sendMessage.isPending}
+            disabled={sendMessage.isPending || isSubmitting}
           />
           <Button
             type="submit"
-            disabled={sendMessage.isPending || (!message.trim() && !selectedImage)}
+            disabled={sendMessage.isPending || isSubmitting || !message.trim()}
           >
-            <Send className="h-4 w-4" />
+            {sendMessage.isPending || isSubmitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
             <span className="sr-only">Send message</span>
           </Button>
         </div>
-        {selectedImage && (
-          <div className="mt-2">
-            <img
-              src={selectedImage}
-              alt="Selected image"
-              className="h-20 rounded-md"
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-1"
-              onClick={() => setSelectedImage(null)}
-            >
-              Remove
-            </Button>
-          </div>
-        )}
       </form>
     </Card>
   );

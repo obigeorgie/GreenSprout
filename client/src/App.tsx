@@ -16,7 +16,6 @@ import HealthScan from "@/pages/health-scan";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
 import AuthPage from "@/pages/auth";
-import CopilotWrapper from "@/components/copilot-provider";
 
 function Router() {
   return (
@@ -40,15 +39,13 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <CopilotWrapper>
-          <div className="min-h-screen bg-background">
-            <main className="container mx-auto px-4 pb-20">
-              <Router />
-            </main>
-            <MobileNav />
-          </div>
-          <Toaster />
-        </CopilotWrapper>
+        <div className="min-h-screen bg-background">
+          <main className="container mx-auto px-4 pb-20">
+            <Router />
+          </main>
+          <MobileNav />
+        </div>
+        <Toaster />
       </AuthProvider>
     </QueryClientProvider>
   );
