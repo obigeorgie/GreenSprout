@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Bot, User, Camera, Loader2 } from "lucide-react";
+import { Send, Bot, User, Camera } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -29,8 +29,6 @@ export default function ChatInterface() {
       }
       return response.json();
     },
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
   useEffect(() => {
@@ -52,15 +50,6 @@ export default function ChatInterface() {
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        toast({
-          title: "Error",
-          description: "Image size must be less than 5MB",
-          variant: "destructive",
-        });
-        return;
-      }
-
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result as string);
@@ -79,9 +68,6 @@ export default function ChatInterface() {
 
       if (!response.ok) {
         const error = await response.json();
-        if (response.status === 429) {
-          throw new Error("PlantBuddy is a bit busy. Please wait a moment before trying again.");
-        }
         throw new Error(error.message || "Failed to send message");
       }
 
@@ -102,10 +88,9 @@ export default function ChatInterface() {
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to send message",
         variant: "destructive",
       });
-      console.error("Chat error:", error);
     },
   });
 
@@ -120,31 +105,16 @@ export default function ChatInterface() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!message.trim() && !selectedImage) || sendMessage.isPending) return;
-
-    // Show a loading toast for long-running requests
-    const pendingToast = toast({
-      title: "Sending message",
-      description: "PlantBuddy is processing your request...",
-    });
-
-    sendMessage.mutate(
-      { content: message, image: selectedImage },
-      {
-        onSettled: () => {
-          // Dismiss the loading toast
-          toast.dismiss(pendingToast);
-        },
-      }
-    );
+    if (!message.trim() && !selectedImage) return;
+    sendMessage.mutate({ content: message, image: selectedImage });
   };
 
   if (isLoading) {
     return (
-      <Card className="p-6">
-        <div className="flex items-center justify-center space-x-2">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Loading chat history...</span>
+      <Card className="p-4">
+        <div className="space-y-2">
+          <div className="h-8 bg-muted rounded animate-pulse" />
+          <div className="h-8 bg-muted rounded animate-pulse w-3/4" />
         </div>
       </Card>
     );
@@ -154,7 +124,7 @@ export default function ChatInterface() {
     <Card className="flex flex-col h-[500px]">
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4">
-          {messages?.map((msg) => (
+          {messages.map((msg) => (
             <div
               key={msg.id}
               className={`flex items-start gap-2 ${
@@ -182,22 +152,13 @@ export default function ChatInterface() {
                   <img
                     src={msg.imageUrl}
                     alt="Shared plant"
-                    className="mb-2 rounded-md max-w-full h-auto"
-                    loading="lazy"
+                    className="mb-2 rounded-md max-w-full"
                   />
                 )}
-                <p className="text-sm whitespace-pre-wrap break-words">
-                  {msg.content}
-                </p>
+                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               </div>
             </div>
           ))}
-          {sendMessage.isPending && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm">PlantBuddy is thinking...</span>
-            </div>
-          )}
         </div>
       </ScrollArea>
 
@@ -215,7 +176,6 @@ export default function ChatInterface() {
             variant="outline"
             size="icon"
             onClick={() => fileInputRef.current?.click()}
-            disabled={sendMessage.isPending}
           >
             <Camera className="h-4 w-4" />
           </Button>
@@ -229,11 +189,7 @@ export default function ChatInterface() {
             type="submit"
             disabled={sendMessage.isPending || (!message.trim() && !selectedImage)}
           >
-            {sendMessage.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
+            <Send className="h-4 w-4" />
             <span className="sr-only">Send message</span>
           </Button>
         </div>
@@ -242,14 +198,13 @@ export default function ChatInterface() {
             <img
               src={selectedImage}
               alt="Selected image"
-              className="h-20 rounded-md object-cover"
+              className="h-20 rounded-md"
             />
             <Button
               variant="ghost"
               size="sm"
               className="mt-1"
               onClick={() => setSelectedImage(null)}
-              disabled={sendMessage.isPending}
             >
               Remove
             </Button>

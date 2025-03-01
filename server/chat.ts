@@ -1,22 +1,7 @@
 import OpenAI from "openai";
 import { type ChatMessage, AssistantActionType } from "@shared/schema";
-import { requestQueue } from "./queue";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Updated model to be more explicit about supported content types
-type ChatContent = string | {
-  type: "text";
-  text: string;
-} | {
-  type: "image_url";
-  image_url: { url: string; };
-};
-
-type ChatCompletionMessage = {
-  role: "system" | "user" | "assistant";
-  content: ChatContent | ChatContent[];
-};
 
 export async function generatePlantCareResponse(messages: ChatMessage[]): Promise<{
   content: string;
@@ -25,16 +10,19 @@ export async function generatePlantCareResponse(messages: ChatMessage[]): Promis
   imageUrl?: string;
 }> {
   try {
-    // Format messages with proper typing
-    const formattedMessages: ChatCompletionMessage[] = messages.map(msg => ({
+    const formattedMessages = messages.map(msg => ({
       role: msg.role as "user" | "assistant" | "system",
-      content: msg.imageUrl ? [
-        { type: "text", text: msg.content },
-        { type: "image_url", image_url: { url: msg.imageUrl } }
-      ] : msg.content
+      content: msg.content,
+      // Include image if present
+      ...(msg.imageUrl && {
+        content: [
+          { type: "text", text: msg.content },
+          { type: "image_url", image_url: { url: msg.imageUrl } }
+        ]
+      })
     }));
 
-    // Add comprehensive system message
+    // Add comprehensive system message to guide responses
     formattedMessages.unshift({
       role: "system",
       content: `You are PlantBuddy, an advanced AI assistant for plant care management with access to all app features:
@@ -75,18 +63,38 @@ Always maintain a helpful, knowledgeable tone focused on plant care and sustaina
 If a user shares an image, prioritize visual analysis in your response.`
     });
 
-    // Use request queue to handle API calls
-    const response = await requestQueue.add(() => 
-      openai.chat.completions.create({
-        model: "gpt-4-vision-preview",
-        messages: formattedMessages as any, // Type assertion needed due to OpenAI types limitation
-        temperature: 0.7,
-        max_tokens: 500,
-        response_format: { type: "json_object" }
-      })
-    );
+    const response = await openai.chat.completions.create({
+      model: "gpt-4-vision-preview",
+      messages: formattedMessages as any,
+      temperature: 0.7,
+      max_tokens: 500,
+      response_format: { type: "json_object" }
+    });
 
     const parsedResponse = JSON.parse(response.choices[0].message.content || "{}");
+
+    // If user shared an image for identification, analyze it specifically
+    if (messages[messages.length - 1].imageUrl) {
+      const imageAnalysisResponse = await openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Identify this plant and provide care instructions:" },
+              { 
+                type: "image_url",
+                image_url: { url: messages[messages.length - 1].imageUrl! }
+              }
+            ]
+          }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const imageAnalysis = JSON.parse(imageAnalysisResponse.choices[0].message.content || "{}");
+      parsedResponse.content += `\n\nPlant Analysis:\n${imageAnalysis.content || ""}`;
+    }
 
     return {
       content: parsedResponse.content || "I apologize, but I couldn't generate a response. Please try asking in a different way.",
@@ -96,14 +104,6 @@ If a user shares an image, prioritize visual analysis in your response.`
     };
   } catch (error) {
     console.error("Error generating plant care response:", error);
-
-    // Provide more specific error messages based on error type
-    if (error.status === 429) {
-      throw new Error("I'm currently handling many requests. Please try again in a moment.");
-    } else if (error.status === 500) {
-      throw new Error("There was an issue processing your request. Please try again.");
-    }
-
     throw new Error("Failed to generate response");
   }
 }
