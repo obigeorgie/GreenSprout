@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { type ChatMessage, AssistantActionType } from "@shared/schema";
-import type { Plant, SwapListing } from "@shared/schema";
+import { requestQueue } from "./queue";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -75,16 +75,18 @@ Always maintain a helpful, knowledgeable tone focused on plant care and sustaina
 If a user shares an image, prioritize visual analysis in your response.`
     });
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
-      messages: formattedMessages as any, // Type assertion needed due to OpenAI types limitation
-      temperature: 0.7,
-      max_tokens: 500,
-      response_format: { type: "json_object" }
-    });
+    // Use request queue to handle API calls
+    const response = await requestQueue.add(() => 
+      openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        messages: formattedMessages as any, // Type assertion needed due to OpenAI types limitation
+        temperature: 0.7,
+        max_tokens: 500,
+        response_format: { type: "json_object" }
+      })
+    );
 
     const parsedResponse = JSON.parse(response.choices[0].message.content || "{}");
-
 
     return {
       content: parsedResponse.content || "I apologize, but I couldn't generate a response. Please try asking in a different way.",
@@ -94,6 +96,14 @@ If a user shares an image, prioritize visual analysis in your response.`
     };
   } catch (error) {
     console.error("Error generating plant care response:", error);
+
+    // Provide more specific error messages based on error type
+    if (error.status === 429) {
+      throw new Error("I'm currently handling many requests. Please try again in a moment.");
+    } else if (error.status === 500) {
+      throw new Error("There was an issue processing your request. Please try again.");
+    }
+
     throw new Error("Failed to generate response");
   }
 }

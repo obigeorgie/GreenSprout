@@ -80,7 +80,7 @@ export default function ChatInterface() {
       if (!response.ok) {
         const error = await response.json();
         if (response.status === 429) {
-          throw new Error("Too many requests. Please wait a moment before trying again.");
+          throw new Error("PlantBuddy is a bit busy. Please wait a moment before trying again.");
         }
         throw new Error(error.message || "Failed to send message");
       }
@@ -102,7 +102,7 @@ export default function ChatInterface() {
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to send message",
+        description: error.message,
         variant: "destructive",
       });
       console.error("Chat error:", error);
@@ -121,7 +121,22 @@ export default function ChatInterface() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && !selectedImage) || sendMessage.isPending) return;
-    sendMessage.mutate({ content: message, image: selectedImage });
+
+    // Show a loading toast for long-running requests
+    const pendingToast = toast({
+      title: "Sending message",
+      description: "PlantBuddy is processing your request...",
+    });
+
+    sendMessage.mutate(
+      { content: message, image: selectedImage },
+      {
+        onSettled: () => {
+          // Dismiss the loading toast
+          toast.dismiss(pendingToast);
+        },
+      }
+    );
   };
 
   if (isLoading) {
