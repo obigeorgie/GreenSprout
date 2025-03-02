@@ -48,6 +48,7 @@ export function setupAuth(app: Express) {
     cookie: {
       secure: process.env.NODE_ENV === "production",
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: 'lax'
     }
   };
 
@@ -74,12 +75,12 @@ export function setupAuth(app: Express) {
     }),
   );
 
-  // Google Strategy
+  // Google Strategy Configuration
   const callbackURL = process.env.NODE_ENV === 'production'
     ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
     : 'http://localhost:5000/auth/google/callback';
 
-  console.log('Configuring Google OAuth with callback URL:', callbackURL);
+  console.log('Setting up Google OAuth with callback URL:', callbackURL);
 
   passport.use(
     new GoogleStrategy(
@@ -87,7 +88,7 @@ export function setupAuth(app: Express) {
         clientID: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
         callbackURL,
-        proxy: true, // Enable proxy support
+        proxy: true,
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
@@ -109,7 +110,7 @@ export function setupAuth(app: Express) {
             user = await storage.createUser({
               username: profile.displayName,
               email: profile.emails[0].value,
-              password: await hashPassword(randomBytes(32).toString("hex")), // Random password for OAuth users
+              password: await hashPassword(randomBytes(32).toString("hex")),
             });
             console.log("Created new user:", { id: user.id, username: user.username });
           } else {
@@ -148,6 +149,7 @@ export function setupAuth(app: Express) {
   // Apply rate limiting to auth routes
   app.use(["/api/login", "/api/register", "/auth/google", "/auth/google/callback"], authLimiter);
 
+  // Authentication routes
   app.post("/api/register", async (req, res, next) => {
     try {
       const existingUser = await storage.getUserByUsername(req.body.username);
@@ -194,20 +196,16 @@ export function setupAuth(app: Express) {
     res.json(req.user);
   });
 
-  // Google OAuth routes with improved error handling and logging
+  // Google OAuth routes with improved error handling
   app.get(
     "/auth/google",
     (req, res, next) => {
-      if (req.session.passport?.user) {
-        console.log("User already authenticated, redirecting to home");
-        return res.redirect("/");
-      }
       console.log("Starting Google OAuth flow");
       next();
     },
-    passport.authenticate("google", { 
+    passport.authenticate("google", {
       scope: ["profile", "email"],
-      prompt: "select_account"  // Always show Google account selector
+      prompt: "select_account"
     })
   );
 
