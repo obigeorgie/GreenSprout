@@ -34,12 +34,13 @@ export function setupAuth(app: Express) {
   // Rate limiting middleware
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
+    max: 100,
     message: "Too many authentication attempts, please try again later",
     standardHeaders: true,
     legacyHeaders: false,
   });
 
+  // Session configuration
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET!,
     resave: false,
@@ -48,16 +49,21 @@ export function setupAuth(app: Express) {
     cookie: {
       secure: process.env.NODE_ENV === "production",
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'lax'
+      sameSite: process.env.NODE_ENV === "production" ? 'lax' : 'none'
     }
   };
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Running in development mode with modified session settings');
+    sessionSettings.cookie!.secure = false;
+  }
 
   app.set("trust proxy", 1);
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Local Strategy
+  // Local Strategy setup
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
@@ -65,9 +71,8 @@ export function setupAuth(app: Express) {
         const user = await storage.getUserByUsername(username);
         if (!user || !(await comparePasswords(password, user.password))) {
           return done(null, false);
-        } else {
-          return done(null, user);
         }
+        return done(null, user);
       } catch (error) {
         console.error("Local strategy error:", error);
         return done(error as Error);
@@ -75,12 +80,18 @@ export function setupAuth(app: Express) {
     }),
   );
 
-  // Google Strategy Configuration
+  // Google Strategy Configuration with enhanced debugging
   const callbackURL = process.env.NODE_ENV === 'production'
     ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
     : 'http://localhost:5000/auth/google/callback';
 
-  console.log('Setting up Google OAuth with callback URL:', callbackURL);
+  console.log('Google OAuth Configuration:', {
+    environment: process.env.NODE_ENV,
+    callbackURL,
+    hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+    hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+    timestamp: new Date().toISOString()
+  });
 
   passport.use(
     new GoogleStrategy(
@@ -92,10 +103,11 @@ export function setupAuth(app: Express) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          console.log("Google OAuth callback received for profile:", {
-            id: profile.id,
+          console.log("Google OAuth callback received:", {
+            profileId: profile.id,
             displayName: profile.displayName,
-            email: profile.emails?.[0]?.value
+            email: profile.emails?.[0]?.value,
+            timestamp: new Date().toISOString()
           });
 
           if (!profile.emails?.[0]?.value) {
@@ -112,9 +124,17 @@ export function setupAuth(app: Express) {
               email: profile.emails[0].value,
               password: await hashPassword(randomBytes(32).toString("hex")),
             });
-            console.log("Created new user:", { id: user.id, username: user.username });
+            console.log("Created new user:", {
+              id: user.id,
+              username: user.username,
+              timestamp: new Date().toISOString()
+            });
           } else {
-            console.log("Found existing user:", { id: user.id, username: user.username });
+            console.log("Found existing user:", {
+              id: user.id,
+              username: user.username,
+              timestamp: new Date().toISOString()
+            });
           }
 
           return done(null, user);
@@ -146,10 +166,38 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Apply rate limiting to auth routes
-  app.use(["/api/login", "/api/register", "/auth/google", "/auth/google/callback"], authLimiter);
-
   // Authentication routes
+  app.get("/auth/google",
+    (req, res, next) => {
+      console.log("Starting Google OAuth flow");
+      console.log("Session:", req.session);
+      console.log("Cookies:", req.cookies);
+      next();
+    },
+    passport.authenticate("google", {
+      scope: ["profile", "email"],
+      prompt: "select_account"
+    })
+  );
+
+  app.get(
+    "/auth/google/callback",
+    (req, res, next) => {
+      console.log("Received Google OAuth callback");
+      console.log("Query parameters:", req.query);
+      console.log("Session:", req.session);
+      passport.authenticate("google", {
+        failureRedirect: "/auth?error=google-auth-failed",
+        failureMessage: true,
+      })(req, res, next);
+    },
+    (req, res) => {
+      console.log("Google OAuth successful, redirecting to home");
+      res.redirect("/");
+    }
+  );
+
+  // Other auth routes remain unchanged
   app.post("/api/register", async (req, res, next) => {
     try {
       const existingUser = await storage.getUserByUsername(req.body.username);
@@ -196,33 +244,8 @@ export function setupAuth(app: Express) {
     res.json(req.user);
   });
 
-  // Google OAuth routes with improved error handling
-  app.get(
-    "/auth/google",
-    (req, res, next) => {
-      console.log("Starting Google OAuth flow");
-      next();
-    },
-    passport.authenticate("google", {
-      scope: ["profile", "email"],
-      prompt: "select_account"
-    })
-  );
-
-  app.get(
-    "/auth/google/callback",
-    (req, res, next) => {
-      console.log("Received Google OAuth callback");
-      passport.authenticate("google", {
-        failureRedirect: "/auth?error=google-auth-failed",
-        failureMessage: true,
-      })(req, res, next);
-    },
-    (req, res) => {
-      console.log("Google OAuth successful, redirecting to home");
-      res.redirect("/");
-    }
-  );
+  // Apply rate limiting to auth routes
+  app.use(["/api/login", "/api/register", "/auth/google", "/auth/google/callback"], authLimiter);
 
   // Error handling middleware
   app.use((error: Error, req: any, res: any, next: any) => {
